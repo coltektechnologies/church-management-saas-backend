@@ -1,0 +1,27 @@
+INFO 2026-01-08 16:09:31,828 autoreload Watching for file changes with StatReloader
+INFO 2026-01-08 16:33:04,295 autoreload /home/professor/Desktop/church-management-saas-backend/church_saas/settings.py changed, reloading.
+INFO 2026-01-08 16:33:05,421 autoreload Watching for file changes with StatReloader
+INFO 2026-01-08 16:36:56,433 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-08 16:36:57,305 autoreload Watching for file changes with StatReloader
+INFO 2026-01-08 17:05:52,299 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 10:58:45,041 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:21:16,995 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-09 12:21:55,647 log Not Found: /
+WARNING 2026-01-09 12:21:55,802 log Not Found: /favicon.ico
+INFO 2026-01-09 12:37:10,292 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/admin.py changed, reloading.
+INFO 2026-01-09 12:37:11,098 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:37:45,234 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/admin.py changed, reloading.
+INFO 2026-01-09 12:37:46,145 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:38:43,664 autoreload /home/professor/Desktop/church-management-saas-backend/members/admin.py changed, reloading.
+INFO 2026-01-09 12:38:44,518 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:39:03,295 autoreload /home/professor/Desktop/church-management-saas-backend/members/admin.py changed, reloading.
+INFO 2026-01-09 12:39:04,442 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:39:07,135 autoreload /home/professor/Desktop/church-management-saas-backend/members/admin.py changed, reloading.
+INFO 2026-01-09 12:39:08,065 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:39:20,536 autoreload /home/professor/Desktop/church-management-saas-backend/members/admin.py changed, reloading.
+INFO 2026-01-09 12:39:21,321 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:39:26,639 autoreload /home/professor/Desktop/church-management-saas-backend/members/admin.py changed, reloading.
+INFO 2026-01-09 12:39:27,512 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:40:08,108 autoreload /home/professor/Desktop/church-management-saas-backend/departments/admin.py changed, reloading.
+INFO 2026-01-09 12:40:09,317 autoreload Watching for file changes with StatReloader
+INFO 2026-01-09 12:45:16,095 autoreload Watching for file changes with StatReloader
