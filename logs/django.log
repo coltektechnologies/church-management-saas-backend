@@ -25,3 +25,1082 @@ INFO 2026-01-09 12:39:27,512 autoreload Watching for file changes with StatReloa
 INFO 2026-01-09 12:40:08,108 autoreload /home/professor/Desktop/church-management-saas-backend/departments/admin.py changed, reloading.
 INFO 2026-01-09 12:40:09,317 autoreload Watching for file changes with StatReloader
 INFO 2026-01-09 12:45:16,095 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:06:51,058 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:07:36,131 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:07:36,553 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:07:54,521 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:07:55,077 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:08:35,854 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:08:36,277 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:08:39,651 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:08:40,153 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:09:45,888 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:09:46,472 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:09:47,821 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:09:48,244 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:10:09,263 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-13 17:10:09,700 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-13 17:10:21,709 log Not Found: /
+WARNING 2026-01-13 17:10:21,936 log Not Found: /favicon.ico
+WARNING 2026-01-13 17:11:46,411 log Unauthorized: /api/auth/churches/
+WARNING 2026-01-13 17:14:34,490 log Not Found: /auth/
+WARNING 2026-01-13 17:16:39,876 log Not Found: /api/churches/
+WARNING 2026-01-13 17:17:16,356 log Unauthorized: /api/auth/churches/
+WARNING 2026-01-13 17:17:43,360 log Not Found: /api/auth/churches/1/
+INFO 2026-01-13 17:22:52,273 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:22:52,749 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:22:56,159 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:22:56,620 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:22:58,957 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:22:59,479 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:04,968 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:05,468 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:10,844 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:11,370 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:13,765 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:14,219 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:16,584 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:17,145 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:19,609 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:20,043 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:22,483 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:22,924 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:25,316 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:25,921 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:27,259 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:27,788 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:33,139 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:33,664 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:34,993 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:35,494 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:38,908 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:39,379 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:23:40,728 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:23:41,166 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:24:47,060 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:24:47,627 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:24:48,950 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:24:49,357 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:24:51,811 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:24:52,244 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:24:57,715 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:24:58,148 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:02,579 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:03,133 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:04,470 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:04,891 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:08,158 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:08,761 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:11,136 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:11,702 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:12,933 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:13,360 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:19,881 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:20,306 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:22,664 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:23,219 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:24,458 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:24,878 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:31,352 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:31,771 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:35,146 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:35,613 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:25:36,830 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:25:37,248 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:26:02,542 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:26:03,029 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:26:05,362 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:26:05,841 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:26:07,218 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:26:07,695 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:26:09,027 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:26:09,430 autoreload Watching for file changes with StatReloader
+INFO 2026-01-13 17:26:15,990 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-13 17:26:16,421 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:32:06,844 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:56:23,046 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:56:23,585 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:56:24,969 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:56:25,544 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:56:26,794 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:56:27,267 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:56:45,112 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:56:45,519 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:04,317 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:04,755 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:15,319 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:15,763 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:19,019 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:19,455 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:22,717 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:23,142 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:28,486 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:28,946 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:37,461 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:37,890 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:41,156 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:41,610 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:46,957 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:47,369 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:57:50,615 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:57:51,038 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:58:19,193 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:58:19,653 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:58:42,644 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:58:43,039 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:58:59,915 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:00,325 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:59:02,683 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:03,112 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:59:16,746 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:17,266 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:59:43,645 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:44,097 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:59:55,660 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:56,137 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 02:59:57,348 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 02:59:57,776 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:06,303 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:06,782 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:07,967 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:08,373 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:13,754 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:14,225 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:15,445 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:16,022 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:17,209 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:17,622 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:19,828 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:20,240 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:27,662 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:28,121 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:00:35,549 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:00:35,965 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:14,523 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:15,021 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:16,218 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:16,662 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:19,987 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:20,401 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:23,645 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:24,047 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:27,277 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:27,713 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:29,922 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:30,368 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:31,562 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:32,049 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:33,242 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:33,647 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:37,992 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:38,454 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:39,656 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:40,057 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:43,307 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:43,827 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:45,017 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:45,440 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:47,669 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:48,110 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:49,292 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:49,745 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:01:53,007 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:01:53,458 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:02:12,333 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:02:12,778 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:02:16,062 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:02:16,523 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:04:27,699 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:04:28,141 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:04:32,473 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:04:32,930 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:04:54,956 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:04:55,482 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:28,885 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:29,408 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:30,601 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:31,163 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:35,495 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:35,921 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:44,388 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:44,797 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:49,061 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:49,485 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:05:57,903 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:05:58,320 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:08:42,436 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:08:42,890 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:08:58,611 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:08:59,083 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:09:03,395 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:09:03,800 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:09:29,848 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:09:30,282 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:09:33,559 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:09:33,961 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:10:47,777 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:10:48,180 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:11:11,110 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:11:11,595 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:11:53,374 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:11:53,742 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:11:58,053 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:11:58,474 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:05,917 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:12:06,435 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:07,792 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:12:08,253 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:10,482 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:12:10,894 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:12,098 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/models.py changed, reloading.
+INFO 2026-01-14 03:12:12,509 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:55,272 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:12:55,724 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:12:59,036 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:12:59,504 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:13:04,913 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:13:05,358 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:13:09,713 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:13:10,122 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:13:12,335 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:13:12,794 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:13:15,040 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:13:15,462 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:13:21,837 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:13:22,278 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:14:10,241 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:14:10,662 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:14:17,070 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:14:17,559 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:15:11,631 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:15:12,102 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:15:46,731 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:15:47,145 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:15:49,495 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:15:49,923 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:15:55,292 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:15:55,724 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:16:44,002 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:16:44,443 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:16:48,927 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:16:49,565 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:16:51,023 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:16:51,499 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:16:54,793 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:16:55,209 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:14,208 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:14,665 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:40,953 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:41,463 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:42,693 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:43,111 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:45,399 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:45,819 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:48,058 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:48,529 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:17:52,957 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:17:53,414 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:18:21,887 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:18:22,406 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:18:25,786 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:18:26,268 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:18:29,539 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:18:29,997 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:18:47,987 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:18:48,440 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:18:50,801 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:18:51,213 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:19:14,326 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:19:14,847 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:19:16,238 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:19:16,650 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:19:37,745 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:19:38,167 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:19:52,019 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:19:52,503 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:20:03,196 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:20:03,623 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:20:11,198 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:20:11,690 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:20:54,662 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:20:55,168 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:20:59,629 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:21:00,082 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:21:32,545 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:21:33,090 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:21:34,508 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:21:34,909 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:22:03,286 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:22:03,698 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 03:22:13,042 log Not Found: /
+WARNING 2026-01-14 03:22:13,332 log Not Found: /favicon.ico
+ERROR 2026-01-14 03:24:46,989 log Internal Server Error: /swagger/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/views.py", line 129, in get
+    schema = generator.get_schema(request, self.public)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/generators.py", line 337, in get_schema
+    paths, prefix = self.get_paths(endpoints, components, request, public)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/generators.py", line 561, in get_paths
+    operation = self.get_operation(
+                ^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/generators.py", line 609, in get_operation
+    operation = view_inspector.get_operation(operation_keys)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/inspectors/view.py", line 43, in get_operation
+    body = self.get_request_body_parameters(consumes)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/inspectors/view.py", line 87, in get_request_body_parameters
+    serializer = self.get_request_serializer()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/inspectors/view.py", line 140, in get_request_serializer
+    body_override = self._get_request_body_override()
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/drf_yasg/inspectors/view.py", line 121, in _get_request_body_override
+    raise SwaggerGenerationError(
+drf_yasg.errors.SwaggerGenerationError: request_body can only be applied to (PUT,PATCH,POST,DELETE); are you looking for query_serializer or manual_parameters?
+INFO 2026-01-14 03:30:02,165 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:02,616 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:07,111 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:07,534 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:20,247 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:20,794 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:22,224 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:22,639 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:28,153 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:28,574 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:34,065 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:34,509 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:36,722 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:37,287 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:30:38,518 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:30:38,967 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:31:32,273 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:31:32,719 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:32:31,079 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 03:32:31,543 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:32:53,637 autoreload /home/professor/Desktop/church-management-saas-backend/church_saas/urls.py changed, reloading.
+INFO 2026-01-14 03:32:54,079 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:52:10,822 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/serializers.py changed, reloading.
+INFO 2026-01-14 03:52:11,239 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:57:54,374 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:57:54,822 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:57:57,075 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:57:57,600 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:58:07,178 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:58:07,658 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:58:33,665 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:58:34,122 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:58:46,800 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:58:47,227 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 03:59:07,243 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 03:59:07,666 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:00:42,342 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:00:42,905 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:02:06,928 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:02:07,437 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:02:08,631 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:02:09,052 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:05:32,927 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:05:33,536 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:05:34,814 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:05:35,280 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:05:49,989 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:05:50,563 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:05:51,768 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:05:52,177 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:06:35,167 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:06:35,828 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:06:42,454 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:06:42,968 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:07:56,309 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:07:56,743 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:08:00,005 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:08:00,663 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:09:52,710 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:09:53,196 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:09:54,498 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:09:54,978 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:10:00,286 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:10:00,825 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:16,953 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:17,444 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:20,722 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:21,344 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:23,666 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:24,166 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:25,408 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:26,009 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:27,281 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:27,797 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:33,160 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:33,659 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:36,974 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:37,540 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:38,853 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:39,374 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:54,140 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:54,720 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:16:56,003 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:16:56,535 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:02,896 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:03,419 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:11,866 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:12,311 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:13,541 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:13,980 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:18,243 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:18,694 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:29,200 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:29,665 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:38,170 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:38,581 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:43,929 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:44,455 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:45,657 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:46,098 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:51,446 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:51,862 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:17:59,398 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:17:59,805 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:04,075 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:04,514 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:11,974 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:12,419 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:18,843 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:19,281 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:29,866 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:30,289 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:43,904 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:44,327 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:53,768 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:54,202 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:18:57,502 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:18:57,937 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:19:27,211 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:19:27,668 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:19:29,873 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:19:30,318 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:19:34,648 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:19:35,059 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:19:42,501 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:19:42,923 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:19:46,197 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:19:46,617 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:23:31,261 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:23:31,698 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 04:24:05,079 log Not Found: /swagger/
+WARNING 2026-01-14 04:24:08,112 log Not Found: /swagger/
+WARNING 2026-01-14 04:24:08,295 log Not Found: /swagger/
+ERROR 2026-01-14 04:25:47,011 log Internal Server Error: /api/auth/login/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 526, in post
+    serializer = LoginSerializer(data=request.data, context={'request': request})
+                 ^^^^^^^^^^^^^^^
+NameError: name 'LoginSerializer' is not defined. Did you mean: 'RoleSerializer'?
+INFO 2026-01-14 04:26:25,493 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:26:41,313 log Internal Server Error: /api/auth/login/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 526, in post
+    serializer = LoginSerializer(data=request.data, context={'request': request})
+                 ^^^^^^^^^^^^^^^
+NameError: name 'LoginSerializer' is not defined. Did you mean: 'RoleSerializer'?
+INFO 2026-01-14 04:27:03,131 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:27:03,642 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 04:27:16,133 log Bad Request: /api/auth/login/
+ERROR 2026-01-14 04:33:05,722 log Internal Server Error: /api/auth/login/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 534, in post
+    user.last_login = timezone.now()
+                      ^^^^^^^^
+NameError: name 'timezone' is not defined
+INFO 2026-01-14 04:34:05,431 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:34:05,934 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:34:21,697 log Internal Server Error: /api/auth/login/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 540, in post
+    refresh = RefreshToken.for_user(user)
+              ^^^^^^^^^^^^
+NameError: name 'RefreshToken' is not defined
+INFO 2026-01-14 04:34:48,829 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:34:49,442 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:35:26,964 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 04:37:24,968 log Not Found: /.well-known/appspecific/com.chrome.devtools.json
+ERROR 2026-01-14 04:38:17,184 log Internal Server Error: /api/auth/churches/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 34, in get
+    churches = Church.objects.filter(deleted_at__isnull=True)
+               ^^^^^^
+NameError: name 'Church' is not defined
+INFO 2026-01-14 04:39:23,479 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:39:24,072 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:40:55,529 log Internal Server Error: /api/auth/churches/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.UndefinedColumn: column churches.logo does not exist
+LINE 1: ...country", "churches"."region", "churches"."city", "churches"...
+                                                             ^
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 44, in get
+    return Response(serializer.data)
+                    ^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/serializers.py", line 797, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/serializers.py", line 251, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/serializers.py", line 715, in to_representation
+    return [
+           ^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/models/query.py", line 386, in __iter__
+    self._fetch_all()
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/models/query.py", line 1954, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/models/query.py", line 93, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1623, in execute_sql
+    cursor.execute(sql, params)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.ProgrammingError: column churches.logo does not exist
+LINE 1: ...country", "churches"."region", "churches"."city", "churches"...
+                                                             ^
+
+ERROR 2026-01-14 04:44:01,674 log Internal Server Error: /api/auth/permissions/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 799, in get
+    permissions = Permission.objects.all()
+                  ^^^^^^^^^^
+NameError: name 'Permission' is not defined. Did you mean: 'PermissionView'?
+ERROR 2026-01-14 04:44:16,422 log Internal Server Error: /api/auth/permissions/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 799, in get
+    permissions = Permission.objects.all()
+                  ^^^^^^^^^^
+NameError: name 'Permission' is not defined. Did you mean: 'PermissionView'?
+INFO 2026-01-14 04:44:35,649 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:44:36,169 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:47:15,653 log Internal Server Error: /api/auth/role-permissions/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 974, in get
+    role_permissions = RolePermission.objects.all()
+                       ^^^^^^^^^^^^^^
+NameError: name 'RolePermission' is not defined. Did you mean: 'Permission'?
+INFO 2026-01-14 04:47:49,865 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:47:50,388 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:48:38,243 log Internal Server Error: /api/auth/users/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 255, in get
+    users = User.objects.filter(deleted_at__isnull=True)
+            ^^^^
+NameError: name 'User' is not defined
+INFO 2026-01-14 04:49:06,747 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:49:07,348 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:18,277 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:18,727 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:30,366 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:30,828 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:36,299 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:36,836 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:39,305 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:39,821 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:41,158 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:41,580 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:43,953 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:44,442 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:46,865 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:47,361 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:51,867 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:52,358 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:56,676 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:50:57,144 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:50:59,513 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:51:00,096 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:27,498 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:27,942 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:30,304 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:30,796 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:32,123 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:32,572 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:40,141 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:40,599 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:42,954 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:43,375 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:52,010 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:52,487 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:53,697 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:54,131 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:51:59,461 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/urls.py changed, reloading.
+INFO 2026-01-14 04:51:59,937 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:53:02,506 log Internal Server Error: /api/auth/register/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 651, in post
+    serializer = RegisterSerializer(data=request.data)
+                 ^^^^^^^^^^^^^^^^^^
+NameError: name 'RegisterSerializer' is not defined. Did you mean: 'UserSerializer'?
+INFO 2026-01-14 04:53:17,995 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:53:18,598 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 04:53:25,107 log Bad Request: /api/auth/register/
+INFO 2026-01-14 04:54:10,861 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:54:11,411 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:56:19,121 autoreload Watching for file changes with StatReloader
+ERROR 2026-01-14 04:56:52,516 log Internal Server Error: /api/auth/register/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 714, in post
+    refresh = RefreshToken.for_user(user)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework_simplejwt/tokens.py", line 339, in for_user
+    token = super().for_user(user)  # type: ignore
+            ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework_simplejwt/tokens.py", line 227, in for_user
+    user_id = getattr(user, api_settings.USER_ID_FIELD)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'id'
+INFO 2026-01-14 04:57:22,968 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 04:57:23,491 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:57:31,023 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/serializers.py changed, reloading.
+INFO 2026-01-14 04:57:31,579 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 04:57:41,243 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/serializers.py changed, reloading.
+INFO 2026-01-14 04:57:41,759 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 04:58:33,177 log Bad Request: /api/auth/register/
+WARNING 2026-01-14 04:58:35,357 log Bad Request: /api/auth/register/
+INFO 2026-01-14 11:33:13,467 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:52:56,370 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 12:52:57,415 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:02,448 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 12:53:03,400 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:22,858 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:23,820 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:25,870 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:26,650 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:29,137 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:30,197 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:38,338 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:39,100 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:41,830 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:42,843 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:44,640 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:45,547 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:49,462 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:50,600 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:53,096 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:53,954 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:53:57,757 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:53:58,992 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:54:02,031 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:54:03,182 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:54:04,555 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:54:05,405 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:54:07,844 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:54:08,911 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:55:34,595 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:55:35,562 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:55:50,243 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:55:51,059 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:55:53,008 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:55:53,724 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:56:06,852 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:56:07,738 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:56:22,486 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:56:23,350 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:56:25,166 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:56:25,986 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:56:28,853 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:56:29,887 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:57:41,296 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:57:42,158 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:57:47,070 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:57:47,924 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:57:53,895 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:57:54,788 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:57:58,300 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:57:59,172 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:59:52,434 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:59:53,299 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 12:59:58,231 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 12:59:59,306 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:00:02,163 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:00:03,245 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:01:48,664 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:01:49,677 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:01:55,659 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:01:56,604 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:01:58,531 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:01:59,251 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:02:00,992 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:02:01,816 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:02:05,330 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:02:06,122 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:02:09,882 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:02:10,731 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:02:13,312 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:02:14,248 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:02:19,949 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:02:20,837 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:09:09,936 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:09:10,816 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:09:17,745 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:09:18,495 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:09:36,089 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:09:36,976 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:10:23,777 autoreload /home/professor/Desktop/church-management-saas-backend/members/models.py changed, reloading.
+INFO 2026-01-14 13:10:24,589 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:44:03,019 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:44:23,655 autoreload /home/professor/Desktop/church-management-saas-backend/members/views.py changed, reloading.
+INFO 2026-01-14 13:44:24,491 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:46:11,491 autoreload /home/professor/Desktop/church-management-saas-backend/members/serializers.py changed, reloading.
+INFO 2026-01-14 13:46:13,012 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:47:36,147 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:48:21,388 autoreload /home/professor/Desktop/church-management-saas-backend/members/serializers.py changed, reloading.
+INFO 2026-01-14 13:48:22,488 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:50:07,837 autoreload /home/professor/Desktop/church-management-saas-backend/members/urls.py changed, reloading.
+INFO 2026-01-14 13:50:08,787 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 13:51:22,988 autoreload /home/professor/Desktop/church-management-saas-backend/members/urls.py changed, reloading.
+INFO 2026-01-14 13:51:23,992 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 14:12:37,125 log Bad Request: /api/auth/register/
+WARNING 2026-01-14 14:15:23,962 log Not Found: /favicon.ico
+WARNING 2026-01-14 14:21:47,875 log Bad Request: /api/auth/change-password/
+ERROR 2026-01-14 14:23:17,574 log Internal Server Error: /api/auth/roles/
+Traceback (most recent call last):
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/django/views/generic/base.py", line 105, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 515, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 475, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 486, in raise_uncaught_exception
+    raise exc
+  File "/home/professor/Desktop/church-management-saas-backend/venv/lib/python3.12/site-packages/rest_framework/views.py", line 512, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/professor/Desktop/church-management-saas-backend/accounts/views.py", line 743, in get
+    roles = Role.objects.all()
+            ^^^^
+NameError: name 'Role' is not defined
+INFO 2026-01-14 14:23:44,288 autoreload Watching for file changes with StatReloader
+INFO 2026-01-14 14:24:22,183 autoreload /home/professor/Desktop/church-management-saas-backend/accounts/views.py changed, reloading.
+INFO 2026-01-14 14:24:23,198 autoreload Watching for file changes with StatReloader
+WARNING 2026-01-14 14:25:33,455 log Not Found: /api/members/create/
+WARNING 2026-01-14 14:27:10,695 log Unauthorized: /api/members/members/
+WARNING 2026-01-14 14:28:26,655 log Bad Request: /api/auth/login/

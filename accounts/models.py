@@ -21,6 +21,7 @@ class Church(models.Model):
     country = models.CharField(max_length=100)
     region = models.CharField(max_length=100)
     city = models.CharField(max_length=100)
+    logo = models.ImageField(upload_to="churches/logo", blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     timezone = models.CharField(max_length=50, default="UTC")
     currency = models.CharField(max_length=10, default="USD")
