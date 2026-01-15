@@ -1,23 +1,20 @@
-"""
-Django settings for church_saas project.
-"""
-
 import os
 from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
 from decouple import Csv, config
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / ".env")
+
 # Security
-# SECRET_KEY = config("SECRET_KEY")
 SECRET_KEY = os.getenv("SECRET_KEY")
-# DEBUG = config("DEBUG", default=True, cast=bool)
-DEBUG = os.getenv("DEBUG", default=True).lower() == "true"
-# ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(" ")
+DEBUG = str(os.getenv("DEBUG", "True")).lower() == "true"
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(" ")
 
 # Application definition
 INSTALLED_APPS = [
@@ -47,8 +44,9 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -117,9 +115,20 @@ TIME_ZONE = "Africa/Accra"
 USE_I18N = True
 USE_TZ = True
 
-# Static files
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+
+# Extra places for collectstatic to find static files.
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, "static"),
+]
+
+# Enable WhiteNoise storage backend for static files
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Ensure STATIC_ROOT exists
+os.makedirs(STATIC_ROOT, exist_ok=True)
 
 # Media files
 MEDIA_URL = "/media/"
