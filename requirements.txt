@@ -75,6 +75,7 @@ pytest==9.0.2
 pytest-django==4.11.1
 python-dateutil==2.9.0.post0
 python-decouple==3.8
+python-dotenv==1.2.1
 python-http-client==3.3.7
 pytokens==0.3.0
 pytz==2025.2
@@ -101,6 +102,6 @@ wcwidth==0.2.14
 weasyprint==67.0
 webencodings==0.5.1
 Werkzeug==3.1.4
+whitenoise==6.6.0
 yarl==1.22.0
 zopfli==0.4.0
-whitenoise==6.6.0
