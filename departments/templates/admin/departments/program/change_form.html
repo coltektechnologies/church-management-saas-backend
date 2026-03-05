@@ -1,0 +1,35 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block bodyclass %}{{ block.super }} program-change-form{% endblock %}
+
+{% block content %}
+<script>
+  document.body.setAttribute('data-dept-head-base', '{{ dept_head_info_base|default:"" }}');
+</script>
+  {% if show_approval_actions %}
+  <div class="module approval-actions" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+    <h3 style="margin-top: 0;">Approve or Reject Program</h3>
+    <p style="margin-bottom: 15px; color: #6c757d;">This program is submitted for approval. Take action below:</p>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      {% if can_approve_elder %}
+      <a href="{{ approve_elder_url }}" class="button" style="background: #20c997; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">✓ Approve (Elder)</a>
+      {% endif %}
+      {% if can_approve_secretariat %}
+      <a href="{{ approve_secretariat_url }}" class="button" style="background: #007bff; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">✓ Approve (Secretariat)</a>
+      {% endif %}
+      {% if can_approve_treasury %}
+      <a href="{{ approve_treasury_url }}" class="button" style="background: #28a745; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">✓ Approve (Treasury)</a>
+      {% endif %}
+      {% if can_reject %}
+      <form method="post" action="{{ reject_url }}" style="display: inline;" onsubmit="return confirm('Are you sure you want to reject this program?');">
+        {% csrf_token %}
+        <input type="hidden" name="reason" value="Rejected from admin.">
+        <button type="submit" class="button" style="background: #dc3545; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">✗ Reject</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

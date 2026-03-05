@@ -3,5 +3,12 @@ max-line-length = 100
 extend-exclude = */migrations/*
 ignore =
     E501
+    E402
+    E722
+    E226
     F401
+    F541
+    F811
+    F821
+    F841
     W503

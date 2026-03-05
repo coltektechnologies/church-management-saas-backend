@@ -1,0 +1,87 @@
+{% extends "emails/base.html" %}
+
+{% block content %}
+<div style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h2 style="color: #2c3e50;">{{ site_name }} - {{ frequency }} SMS Delivery Report</h2>
+
+    <div style="margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
+        <p>Report Period: {{ start_date|date:"F j, Y H:i" }} to {{ end_date|date:"F j, Y H:i" }}</p>
+        <p>Total Messages: <strong>{{ total_messages }}</strong></p>
+    </div>
+
+    <div style="margin: 30px 0;">
+        <h3 style="color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px;">Delivery Status</h3>
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+            <thead>
+                <tr style="background-color: #f8f9fa;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Status</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Count</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Percentage</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for status in status_counts %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">
+                        {% with
+                            color={
+                                'delivered': '#2ecc71',
+                                'failed': '#e74c3c',
+                                'pending': '#f39c12',
+                                'undelivered': '#95a5a6'
+                            }[status.status]
+                        %}
+                        <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background-color: {{ color }};"></span>
+                        {% endwith %}
+                        {{ status.status|title }}
+                    </td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ status.count }}</td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">
+                        {{ status.count|floatformat:1 }}%
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin: 30px 0;">
+        <h3 style="color: #2c3e50; border-bottom: 1px solid #eee; padding-bottom: 10px;">Daily Message Volume</h3>
+        <div style="margin: 20px 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background-color: #f8f9fa;">
+                        <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">Date</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Total</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Delivered</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Failed</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">Pending</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for day in daily_counts %}
+                    <tr>
+                        <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ day.day|date:"M j, Y" }}</td>
+                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ day.count }}</td>
+                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ day.delivered|default:0 }}</td>
+                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ day.failed|default:0 }}</td>
+                        <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ day.pending|default:0 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #7f8c8d; font-size: 0.9em;">
+        <p>This is an automated message. Please do not reply to this email.</p>
+        <p>To manage your notification preferences, please visit the <a href="{{ site_url }}/notifications/preferences/" style="color: #3498db; text-decoration: none;">notification settings</a> page.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div style="text-align: center; color: #7f8c8d; font-size: 0.8em; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+    <p>© {% now "Y" %} {{ site_name }}. All rights reserved.</p>
+</div>
+{% endblock %}

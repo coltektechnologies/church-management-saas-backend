@@ -1,0 +1,9 @@
+/* Custom CSS for Program Admin to increase column spacing */
+#result_list tbody th, #result_list tbody td {
+    padding: 10px 15px;
+    min-width: 120px;
+}
+
+#result_list thead th {
+    padding: 10px 15px;
+}

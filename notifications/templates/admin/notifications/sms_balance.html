@@ -1,0 +1,70 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_modify %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+    .sms-balance-card {
+        background: #fff;
+        border: 1px solid #e0e0e0;
+        border-radius: 4px;
+        padding: 20px;
+        margin: 20px 0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .balance-display {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1a73e8;
+        margin: 10px 0;
+    }
+    .balance-details {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 4px;
+    }
+    .balance-details p {
+        margin: 5px 0;
+    }
+    .balance-label {
+        font-weight: 600;
+        color: #5f6368;
+    }
+</style>
+{% endblock %}
+
+{% block content_title %}<h1>SMS Balance</h1>{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <div class="module">
+        <div class="sms-balance-card">
+            <h2>Current SMS Balance</h2>
+            {% if has_balance %}
+                <div class="balance-display">
+                    {{ balance.balance }} SMS Credits
+                </div>
+                <div class="balance-details">
+                    <p><span class="balance-label">Account Status:</span> Active</p>
+                    <p><span class="balance-label">Last Updated:</span> {% now "F j, Y H:i" %}</p>
+                    {% if balance.currency %}
+                    <p><span class="balance-label">Currency:</span> {{ balance.currency }}</p>
+                    {% endif %}
+                    {% if balance.raw_response %}
+                    <p><span class="balance-label">Raw Data:</span> {{ balance.raw_response|pprint }}</p>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="errornote">
+                    Could not retrieve SMS balance. Please check your mNotify API configuration.
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="submit-row">
+        <a href="{% url 'admin:notifications_notificationbatch_changelist' %}" class="button">Back to Batches</a>
+    </div>
+</div>
+{% endblock %}

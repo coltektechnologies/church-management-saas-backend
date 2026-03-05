@@ -1,20 +1,37 @@
+import logging
+import time
+import uuid
+
+from django.core.cache import cache
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Church, Permission, Role, RolePermission, User, UserRole
-from .serializers import (ChangePasswordSerializer, ChurchListSerializer,
-                          ChurchSerializer, LoginSerializer,
-                          PermissionSerializer, RegisterSerializer,
-                          RolePermissionSerializer, RoleSerializer,
-                          UserCreateSerializer, UserListSerializer,
-                          UserRoleSerializer, UserSerializer,
-                          UserUpdateSerializer)
+from .models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
+                     Permission, RegistrationSession, Role, RolePermission,
+                     User, UserRole)
+from .paystack import PaystackAPI
+from .serializers import (ChangePasswordSerializer,
+                          ChurchGroupMemberCreateSerializer,
+                          ChurchGroupMemberSerializer, ChurchGroupSerializer,
+                          ChurchListSerializer, ChurchLoginSerializer,
+                          ChurchRegistrationCompleteSerializer,
+                          ChurchRegistrationStep1Serializer,
+                          ChurchRegistrationStep2Serializer,
+                          ChurchRegistrationStep3Serializer, ChurchSerializer,
+                          LoginSerializer, PermissionSerializer,
+                          RegisterSerializer, RolePermissionSerializer,
+                          RoleSerializer, UserCreateSerializer,
+                          UserListSerializer, UserRoleSerializer,
+                          UserSerializer, UserUpdateSerializer)
+
+logger = logging.getLogger(__name__)
 
 # ==========================================
 # CHURCH VIEWS
@@ -264,32 +281,32 @@ class UserView(APIView):
         return Response(serializer.data)
 
     @swagger_auto_schema(
-        operation_description="Create a new user",
+        operation_description="Create a new user with optional auto-generated credentials",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            required=["email", "username", "password", "password_confirm", "church"],
+            required=["email", "church"],
             properties={
                 "email": openapi.Schema(
                     type=openapi.TYPE_STRING,
                     format="email",
-                    description="User email address",
+                    description="User email address (required)",
                     example="pastor@church.com",
                 ),
                 "username": openapi.Schema(
                     type=openapi.TYPE_STRING,
-                    description="Username",
-                    example="pastor_john",
+                    description="Username (auto-generated if not provided)",
+                    example="john.doe",
                 ),
                 "password": openapi.Schema(
                     type=openapi.TYPE_STRING,
                     format="password",
-                    description="Password (min 8 characters)",
+                    description="Password (auto-generated if not provided, min 8 characters)",
                     example="SecurePass123!",
                 ),
                 "password_confirm": openapi.Schema(
                     type=openapi.TYPE_STRING,
                     format="password",
-                    description="Confirm password",
+                    description="Required if password is provided",
                     example="SecurePass123!",
                 ),
                 "church": openapi.Schema(
@@ -300,30 +317,66 @@ class UserView(APIView):
                 ),
                 "phone": openapi.Schema(
                     type=openapi.TYPE_STRING,
-                    description="Phone number",
+                    description="Phone number (required for SMS notifications)",
                     example="+233244123456",
                 ),
                 "first_name": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="First name", example="John"
+                    type=openapi.TYPE_STRING,
+                    description="First name (required if username not provided)",
+                    example="John",
                 ),
                 "last_name": openapi.Schema(
-                    type=openapi.TYPE_STRING, description="Last name", example="Doe"
+                    type=openapi.TYPE_STRING,
+                    description="Last name (required if username not provided)",
+                    example="Doe",
+                ),
+                "send_credentials": openapi.Schema(
+                    type=openapi.TYPE_BOOLEAN,
+                    description="Whether to send credentials via email/SMS (default: true)",
+                    default=True,
+                ),
+                "notification_preference": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    enum=["email", "sms", "both"],
+                    default="email",
+                    description="How to send credentials (email/sms/both)",
+                ),
+                "church_groups": openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Items(
+                        type=openapi.TYPE_STRING, format=openapi.FORMAT_UUID
+                    ),
+                    description="Optional list of church group UUIDs to add the user to (for auto role assignment)",
                 ),
             },
         ),
         responses={
             201: UserSerializer(),
             400: "Bad Request - Validation errors",
-            403: "Forbidden",
+            403: "Forbidden - Insufficient permissions or user limit reached",
         },
         tags=["Users"],
     )
     def post(self, request):
-        # Check permission to create users
-        church_id = request.data.get("church")
+        # Build data: church admins can omit church (defaults to their church)
+        data = (
+            request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        )
+        if not data.get("church") and getattr(request.user, "church_id", None):
+            data["church"] = str(request.user.church_id)
+
+        church_id = data.get("church")
+        if not church_id:
+            return Response(
+                {
+                    "church": [
+                        "This field is required (or login as a church admin to use your church)."
+                    ]
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if not request.user.is_platform_admin:
-            # Regular users can only create users in their own church
             if str(request.user.church_id) != str(church_id):
                 return Response(
                     {"error": "You can only create users in your own church"},
@@ -331,14 +384,24 @@ class UserView(APIView):
                 )
 
         serializer = UserCreateSerializer(
-            data=request.data, context={"request": request}
+            data=data,
+            context={"request": request},
         )
+
         if serializer.is_valid():
-            user = serializer.save()
-            return Response(
-                UserSerializer(user, context={"request": request}).data,
-                status=status.HTTP_201_CREATED,
-            )
+            try:
+                user = serializer.save()
+                return Response(
+                    UserSerializer(user, context={"request": request}).data,
+                    status=status.HTTP_201_CREATED,
+                )
+            except Exception as e:
+                logger.error(f"Error creating user: {str(e)}")
+                return Response(
+                    {"error": "An error occurred while creating the user"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -491,7 +554,7 @@ class LoginAPIView(APIView):
                 "church_id": openapi.Schema(
                     type=openapi.TYPE_STRING,
                     format="uuid",
-                    description="Church ID (required for non-platform admins)",
+                    description="Optional. Church ID to disambiguate when same email exists in multiple churches. Omit to use the user's church (works when email is unique or platform admin/staff).",
                     example="550e8400-e29b-41d4-a716-446655440000",
                 ),
             },
@@ -602,12 +665,12 @@ class ChangePasswordAPIView(APIView):
 
 
 class RegisterAPIView(APIView):
-    """User registration endpoint"""
+    """User registration endpoint - Platform admins only"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_description="Register a new church and admin user",
+        operation_description="Register a new church and admin user (Platform admins only)",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             required=[
@@ -698,11 +761,18 @@ class RegisterAPIView(APIView):
         responses={
             201: "User registered successfully",
             400: "Bad Request - Validation errors",
-            401: "Unauthorized",
+            403: "Forbidden - Platform admins only",
         },
         tags=["Registration"],
     )
     def post(self, request):
+        # Only platform admins can use this endpoint
+        if not request.user.is_platform_admin:
+            return Response(
+                {"error": "Only platform admins can use this endpoint"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         serializer = RegisterSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -1264,10 +1334,10 @@ class UserRoleView(APIView):
         return Response(serializer.data)
 
     @swagger_auto_schema(
-        operation_description="Assign a role to a user",
+        operation_description="Assign a role to a user. Church is taken from the authenticated user (Bearer token); no church_id in payload.",
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
-            required=["user", "role", "church"],
+            required=["user", "role"],
             properties={
                 "user": openapi.Schema(
                     type=openapi.TYPE_STRING,
@@ -1281,29 +1351,26 @@ class UserRoleView(APIView):
                     description="Role ID",
                     example="650e8400-e29b-41d4-a716-446655440001",
                 ),
-                "church": openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    format="uuid",
-                    description="Church ID",
-                    example="750e8400-e29b-41d4-a716-446655440002",
-                ),
             },
         ),
         responses={201: UserRoleSerializer(), 400: "Bad Request", 403: "Forbidden"},
         tags=["Roles & Permissions"],
     )
     def post(self, request):
-        church_id = request.data.get("church")
+        # Use authenticated user's church (no church_id in payload)
+        church = getattr(request.user, "church", None)
+        if not church:
+            return Response(
+                {"church": ["You must belong to a church to assign roles."]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Check permission
-        if not request.user.is_platform_admin:
-            if str(request.user.church_id) != str(church_id):
-                return Response(
-                    {"error": "You can only assign roles in your own church"},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
+        data = (
+            request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+        )
+        data["church"] = str(church.id)
 
-        serializer = UserRoleSerializer(data=request.data, context={"request": request})
+        serializer = UserRoleSerializer(data=data, context={"request": request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -1350,3 +1417,963 @@ class UserRoleDetailAPIView(APIView):
 
         user_role.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ==========================================
+# CHURCH GROUP VIEWS
+# ==========================================
+
+
+class ChurchGroupView(APIView):
+    """List church groups or create a new one"""
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_church(self, request):
+        church_id = request.query_params.get("church_id") or request.data.get("church")
+        if church_id and request.user.is_platform_admin:
+            try:
+                return Church.objects.get(id=church_id)
+            except Church.DoesNotExist:
+                return None
+        return request.user.church
+
+    @swagger_auto_schema(
+        operation_description="Get list of church groups",
+        manual_parameters=[
+            openapi.Parameter(
+                "church_id",
+                openapi.IN_QUERY,
+                description="Church ID (platform admin only)",
+                type=openapi.TYPE_STRING,
+                format="uuid",
+                required=False,
+            ),
+        ],
+        responses={200: ChurchGroupSerializer(many=True)},
+        tags=["Church Groups"],
+    )
+    def get(self, request):
+        church = self._get_church(request)
+        if not church:
+            return Response(
+                {"error": "Church required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.user.is_platform_admin and church != request.user.church:
+            return Response(
+                {"error": "Access denied"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        groups = ChurchGroup.objects.filter(church=church).select_related("role")
+        serializer = ChurchGroupSerializer(
+            groups, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description="Create a church group",
+        request_body=ChurchGroupSerializer,
+        responses={201: ChurchGroupSerializer(), 400: "Bad Request", 403: "Forbidden"},
+        tags=["Church Groups"],
+    )
+    def post(self, request):
+        church = self._get_church(request)
+        if not church:
+            church_id = request.data.get("church")
+            if church_id:
+                try:
+                    church = Church.objects.get(id=church_id)
+                except Church.DoesNotExist:
+                    pass
+            if not church:
+                church = request.user.church
+        if not church:
+            return Response(
+                {"error": "Church required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.user.is_platform_admin and church != request.user.church:
+            return Response(
+                {"error": "Access denied"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        data = {**request.data, "church": church.id}
+        serializer = ChurchGroupSerializer(data=data, context={"request": request})
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChurchGroupDetailAPIView(APIView):
+    """Retrieve, update, or delete a church group"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk, user):
+        try:
+            group = ChurchGroup.objects.select_related("role", "church").get(pk=pk)
+            if user.is_platform_admin or group.church_id == user.church_id:
+                return group
+            return None
+        except ChurchGroup.DoesNotExist:
+            return None
+
+    @swagger_auto_schema(
+        operation_description="Get church group details",
+        responses={200: ChurchGroupSerializer(), 404: "Not found"},
+        tags=["Church Groups"],
+    )
+    def get(self, request, pk):
+        group = self.get_object(pk, request.user)
+        if group is None:
+            return Response(
+                {"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = ChurchGroupSerializer(group, context={"request": request})
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description="Update church group",
+        request_body=ChurchGroupSerializer,
+        responses={200: ChurchGroupSerializer(), 400: "Bad Request", 404: "Not found"},
+        tags=["Church Groups"],
+    )
+    def put(self, request, pk):
+        group = self.get_object(pk, request.user)
+        if group is None:
+            return Response(
+                {"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = ChurchGroupSerializer(
+            group, data=request.data, partial=True, context={"request": request}
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @swagger_auto_schema(
+        operation_description="Delete church group",
+        responses={204: "Deleted", 404: "Not found"},
+        tags=["Church Groups"],
+    )
+    def delete(self, request, pk):
+        group = self.get_object(pk, request.user)
+        if group is None:
+            return Response(
+                {"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        group.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChurchGroupMemberView(APIView):
+    """List members of a group or add a user to the group"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_group(self, pk, user):
+        try:
+            group = ChurchGroup.objects.get(pk=pk)
+            if user.is_platform_admin or group.church_id == user.church_id:
+                return group
+            return None
+        except ChurchGroup.DoesNotExist:
+            return None
+
+    @swagger_auto_schema(
+        operation_description="Get list of group members",
+        responses={200: ChurchGroupMemberSerializer(many=True)},
+        tags=["Church Groups"],
+    )
+    def get(self, request, pk):
+        group = self.get_group(pk, request.user)
+        if group is None:
+            return Response(
+                {"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        members = ChurchGroupMember.objects.filter(group=group).select_related(
+            "user", "group"
+        )
+        serializer = ChurchGroupMemberSerializer(members, many=True)
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description="Add user to group (auto-assigns group's role)",
+        request_body=ChurchGroupMemberCreateSerializer,
+        responses={
+            201: ChurchGroupMemberSerializer(),
+            400: "Bad Request",
+            404: "Not found",
+        },
+        tags=["Church Groups"],
+    )
+    def post(self, request, pk):
+        group = self.get_group(pk, request.user)
+        if group is None:
+            return Response(
+                {"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        serializer = ChurchGroupMemberCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        user_id = serializer.validated_data["user_id"]
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        if user.church_id != group.church_id:
+            return Response(
+                {"error": "User must belong to the same church as the group"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member, created = ChurchGroupMember.objects.get_or_create(
+            group=group,
+            user=user,
+            defaults={"added_by": request.user},
+        )
+        if not created:
+            return Response(
+                {"error": "User is already in this group"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        s = ChurchGroupMemberSerializer(member)
+        return Response(s.data, status=status.HTTP_201_CREATED)
+
+
+class ChurchGroupMemberDetailAPIView(APIView):
+    """Remove a user from a group"""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, group_pk, member_pk, user):
+        try:
+            member = ChurchGroupMember.objects.select_related("group").get(pk=member_pk)
+            if member.group_id != group_pk:
+                return None
+            if user.is_platform_admin or member.group.church_id == user.church_id:
+                return member
+            return None
+        except ChurchGroupMember.DoesNotExist:
+            return None
+
+    @swagger_auto_schema(
+        operation_description="Remove user from group",
+        responses={204: "Removed", 404: "Not found"},
+        tags=["Church Groups"],
+    )
+    def delete(self, request, pk, member_pk):
+        member = self.get_object(pk, member_pk, request.user)
+        if member is None:
+            return Response(
+                {"error": "Group member not found or access denied"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        member.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+# ==========================================
+# MULTI-STEP REGISTRATION FLOW (with payment)
+# ==========================================
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_step1(request):
+    """
+    Step 1: Validate and store church information in database
+    """
+    serializer = ChurchRegistrationStep1Serializer(data=request.data)
+    if serializer.is_valid():
+        # Create a new registration session with church data under 'church' key
+        session = RegistrationSession.objects.create(
+            step=1,
+            data={"church": serializer.validated_data},  # Store under 'church' key
+            expires_at=timezone.now() + timezone.timedelta(hours=1),
+        )
+        return Response(
+            {
+                "status": "success",
+                "message": "Church information validated",
+                "session_id": str(session.id),
+                "data": serializer.validated_data,
+            }
+        )
+    return Response(
+        {"status": "error", "errors": serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_step2(request):
+    """
+    Step 2: Validate and store admin information in database
+    """
+    session_id = request.data.get("session_id")
+    if not session_id:
+        return Response(
+            {"status": "error", "message": "Session ID is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Get the registration session
+        session = RegistrationSession.objects.get(
+            id=session_id, step=1, expires_at__gt=timezone.now()
+        )
+    except RegistrationSession.DoesNotExist:
+        return Response(
+            {
+                "status": "error",
+                "message": "Please complete step 1 first or session expired",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = ChurchRegistrationStep2Serializer(data=request.data)
+    if serializer.is_valid():
+        # Update the session with step 2 data
+        session.data["admin"] = serializer.validated_data
+        session.step = 2
+        session.expires_at = timezone.now() + timezone.timedelta(hours=1)
+        session.save()
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Admin information validated",
+                "session_id": str(session.id),
+                "data": {
+                    "email": serializer.validated_data["admin_email"],
+                    "first_name": serializer.validated_data["first_name"],
+                    "last_name": serializer.validated_data["last_name"],
+                    "position": serializer.validated_data["position"],
+                },
+            }
+        )
+    return Response(
+        {"status": "error", "errors": serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_step3(request):
+    """
+    Step 3: Select subscription plan and get pricing details
+    """
+    session_id = request.data.get("session_id")
+    if not session_id:
+        return Response(
+            {"status": "error", "message": "Session ID is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Get the registration session
+        session = RegistrationSession.objects.get(
+            id=session_id, step=2, expires_at__gt=timezone.now()
+        )
+    except RegistrationSession.DoesNotExist:
+        return Response(
+            {
+                "status": "error",
+                "message": "Please complete step 2 first or session expired",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    serializer = ChurchRegistrationStep3Serializer(data=request.data)
+    if serializer.is_valid():
+        # Update the session with step 3 data
+        session.data["plan"] = serializer.validated_data
+        session.step = 3
+        session.expires_at = timezone.now() + timezone.timedelta(hours=1)
+        session.save()
+
+        plan = serializer.validated_data["subscription_plan"]
+        cycle = serializer.validated_data["billing_cycle"]
+
+        # Get plan details and pricing
+        plan_details = serializer.get_plan_details(plan, cycle)
+
+        return Response(
+            {
+                "status": "success",
+                "message": "Subscription plan selected",
+                "session_id": str(session.id),
+                "plan_details": plan_details,
+            }
+        )
+    return Response(
+        {"status": "error", "errors": serializer.errors},
+        status=status.HTTP_400_BAD_REQUEST,
+    )
+
+
+def _normalize_billing_cycle(value, subscription_plan=None):
+    """For FREE use 'FREE'; for TRIAL allow '14' (14-day) or default to 'FREE' (30-day); for paid use 'MONTHLY' when empty."""
+    raw = (value or "").strip()
+    if raw:
+        return raw
+    if subscription_plan == "FREE":
+        return "FREE"
+    if subscription_plan == "TRIAL":
+        return "FREE"  # 30-day trial when empty; send "14" for 14-day trial
+    return "MONTHLY"
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_initialize_payment(request):
+    """
+    Step 4: Initialize Paystack payment for registration (or skip for FREE plan)
+    """
+    session_id = request.data.get("session_id")
+    if not session_id:
+        return Response(
+            {"status": "error", "message": "Session ID is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Get the registration session
+        session = RegistrationSession.objects.get(
+            id=session_id, step=3, expires_at__gt=timezone.now()
+        )
+    except RegistrationSession.DoesNotExist:
+        return Response(
+            {
+                "status": "error",
+                "message": "Please complete step 3 first or session expired",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Get data from session with proper structure handling
+    step1_data = session.data.get("church", {}) or {
+        k: v
+        for k, v in session.data.items()
+        if k not in ["admin", "plan", "payment_reference"]
+    }
+    step2_data = session.data.get("admin", {})
+    step3_data = session.data.get("plan", {})
+
+    logger.info(f"[Initialize Payment] Step1 data: {step1_data}")
+    logger.info(f"[Initialize Payment] Step2 data: {step2_data}")
+    logger.info(f"[Initialize Payment] Step3 data: {step3_data}")
+
+    try:
+        # Get plan details
+        step3_serializer = ChurchRegistrationStep3Serializer(data=step3_data)
+        step3_serializer.is_valid()
+        plan_details = step3_serializer.get_plan_details(
+            step3_data["subscription_plan"], step3_data.get("billing_cycle", "MONTHLY")
+        )
+
+        # Check if it's FREE or TRIAL plan - complete registration immediately (no verify-payment needed)
+        if step3_data["subscription_plan"] in ("FREE", "TRIAL"):
+            if not all(
+                [
+                    step1_data.get("church_name"),
+                    step1_data.get("church_email"),
+                    step1_data.get("subdomain"),
+                ]
+            ):
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Missing required church information. Please complete step 1.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if not all(
+                [
+                    step2_data.get("first_name"),
+                    step2_data.get("last_name"),
+                    step2_data.get("admin_email"),
+                    step2_data.get("password"),
+                ]
+            ):
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Missing required admin information. Please complete step 2.",
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            prefix = step3_data["subscription_plan"]
+            reference = f"{prefix}_{session_id}_{int(time.time())}"
+
+            # Build registration data and complete registration in one step
+            registration_data = {
+                "church_name": step1_data.get("church_name"),
+                "church_email": step1_data.get("church_email"),
+                "subdomain": step1_data.get("subdomain"),
+                "denomination": step1_data.get("denomination", ""),
+                "country": step1_data.get("country"),
+                "region": step1_data.get("region"),
+                "city": step1_data.get("city"),
+                "address": step1_data.get("address", ""),
+                "website": step1_data.get("website", ""),
+                "phone": step2_data.get("phone_number", ""),
+                "church_size": step1_data.get("church_size"),
+                "first_name": step2_data.get("first_name"),
+                "last_name": step2_data.get("last_name"),
+                "admin_email": step2_data.get("admin_email"),
+                "phone_number": step2_data.get("phone_number"),
+                "position": step2_data.get("position"),
+                "password": step2_data.get("password"),
+                "subscription_plan": step3_data["subscription_plan"],
+                "billing_cycle": _normalize_billing_cycle(
+                    step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+                ),
+                "payment_reference": reference,
+                "payment_amount": 0,
+            }
+
+            serializer = ChurchRegistrationCompleteSerializer(data=registration_data)
+            if serializer.is_valid():
+                result = serializer.save()
+                session.delete()
+                refresh = RefreshToken.for_user(result["user"])
+                return Response(
+                    {
+                        "status": "success",
+                        "message": "Registration completed successfully",
+                        "user": UserSerializer(result["user"]).data,
+                        "church": ChurchSerializer(result["church"]).data,
+                        "tokens": {
+                            "refresh": str(refresh),
+                            "access": str(refresh.access_token),
+                        },
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+            return Response(
+                {"status": "error", "errors": serializer.errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Paid plans: Initialize Paystack payment
+        reference = f"REG_{session_id}_{int(time.time())}"
+
+        # Initialize Paystack payment
+        paystack = PaystackAPI()
+
+        # Convert to kobo (multiply by 100)
+        amount_kobo = int(plan_details["total_price"] * 100)
+
+        logger.info(
+            f"Initializing Paystack payment: email={step2_data['admin_email']}, amount_dollars={plan_details['total_price']}, plan={step3_data['subscription_plan']}"
+        )
+
+        response = paystack.initialize_transaction(
+            email=step2_data["admin_email"],
+            amount=plan_details[
+                "total_price"
+            ],  # Pass the amount in dollars, method will convert to kobo
+            reference=reference,
+            metadata={
+                "session_id": session_id,
+                "purpose": "church_registration",
+                "subscription_plan": step3_data["subscription_plan"],
+                "billing_cycle": _normalize_billing_cycle(
+                    step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+                ),
+                "church_name": step1_data.get("church_name", "Church"),
+                "admin_email": step2_data.get("admin_email", ""),
+            },
+        )
+
+        if response.get("status"):
+            # Store payment reference
+            session.data["payment_reference"] = reference
+            session.save()
+
+            return Response(
+                {
+                    "status": "success",
+                    "authorization_url": response["data"]["authorization_url"],
+                    "access_code": response["data"]["access_code"],
+                    "reference": reference,
+                    "amount": plan_details["total_price"],
+                    "session_id": str(session.id),
+                    "requires_payment": True,
+                },
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {
+                    "status": "error",
+                    "message": response.get("message", "Failed to initialize payment"),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    except Exception as e:
+        logger.error(
+            f"Error initializing registration payment: {str(e)}", exc_info=True
+        )
+        return Response(
+            {
+                "status": "error",
+                "message": "An error occurred while processing payment",
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_verify_payment(request):
+    """
+    Step 5: Verify payment and complete church registration
+    (Skips payment verification for FREE plan)
+    """
+    session_id = request.data.get("session_id")
+    reference = request.data.get("reference")
+
+    if not session_id:
+        return Response(
+            {"status": "error", "message": "Session ID is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        # Get the registration session
+        session = RegistrationSession.objects.get(
+            id=session_id, step=3, expires_at__gt=timezone.now()
+        )
+    except RegistrationSession.DoesNotExist:
+        return Response(
+            {
+                "status": "error",
+                "message": "Registration session expired or invalid. Please start over.",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Get data from session with proper error handling
+    logger.info(f"Session data: {session.data}")  # Debug log
+
+    # Check if church data is under 'church' key or at root
+    if "church" in session.data:
+        step1_data = session.data["church"]
+    else:
+        # If not under 'church' key, the data is at the root
+        step1_data = {
+            k: v
+            for k, v in session.data.items()
+            if k not in ["admin", "plan", "payment_reference"]
+        }
+
+    step2_data = session.data.get("admin", {})
+    step3_data = session.data.get("plan", {})
+
+    logger.info(f"Step1 data: {step1_data}")  # Debug log
+    logger.info(f"Step2 data: {step2_data}")  # Debug log
+    logger.info(f"Step3 data: {step3_data}")  # Debug log
+
+    # Check if required data exists
+    if not all(
+        [
+            step1_data.get("church_name"),
+            step1_data.get("church_email"),
+            step1_data.get("subdomain"),
+        ]
+    ):
+        return Response(
+            {
+                "status": "error",
+                "message": "Missing required church information. Please start registration again.",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not all(
+        [
+            step2_data.get("first_name"),
+            step2_data.get("last_name"),
+            step2_data.get("admin_email"),
+            step2_data.get("password"),
+        ]
+    ):
+        return Response(
+            {
+                "status": "error",
+                "message": "Missing required admin information. Please complete step 2 again.",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not step3_data.get("subscription_plan"):
+        return Response(
+            {
+                "status": "error",
+                "message": "No subscription plan selected. Please complete step 3 again.",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Check if it's FREE or TRIAL plan - skip payment verification
+    if step3_data["subscription_plan"] in ("FREE", "TRIAL"):
+        # For FREE plan, no payment verification needed
+        # Get reference from session if it exists, otherwise generate one
+        reference = session.data.get("payment_reference")
+        if not reference:
+            prefix = step3_data["subscription_plan"]
+            reference = f"{prefix}_{session_id}_{int(time.time())}"
+        payment_amount = 0
+
+        # Save the reference to session for verification
+        session.data["payment_reference"] = reference
+        session.save()  # 1 hour expiry
+
+        # Combine all data for final registration with proper field mapping
+        registration_data = {
+            # Step 1 data
+            "church_name": step1_data.get("church_name"),
+            "church_email": step1_data.get("church_email"),
+            "subdomain": step1_data.get("subdomain"),
+            "denomination": step1_data.get("denomination", ""),
+            "country": step1_data.get("country"),
+            "region": step1_data.get("region"),
+            "city": step1_data.get("city"),
+            "address": step1_data.get("address", ""),
+            "website": step1_data.get("website", ""),
+            "phone": step2_data.get("phone_number", ""),  # Using phone from admin info
+            "church_size": step1_data.get("church_size"),
+            # Step 2 data
+            "first_name": step2_data.get("first_name"),
+            "last_name": step2_data.get("last_name"),
+            "admin_email": step2_data.get("admin_email"),
+            "phone_number": step2_data.get("phone_number"),
+            "position": step2_data.get("position"),
+            "password": step2_data.get("password"),
+            # Step 3 data
+            "subscription_plan": step3_data.get("subscription_plan"),
+            "billing_cycle": _normalize_billing_cycle(
+                step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+            ),
+            # Payment data
+            "payment_reference": reference,
+            "payment_amount": payment_amount,
+        }
+
+        # Create church and admin user
+        serializer = ChurchRegistrationCompleteSerializer(data=registration_data)
+
+        if serializer.is_valid():
+            result = serializer.save()
+
+            # Delete the session after successful registration
+            session.delete()
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(result["user"])
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Registration completed successfully",
+                    "user": UserSerializer(result["user"]).data,
+                    "church": ChurchSerializer(result["church"]).data,
+                    "tokens": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            {"status": "error", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    else:
+        # Verify payment with Paystack for paid plans
+        if not reference:
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Payment reference is required for paid plans",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        paystack = PaystackAPI()
+        verification = paystack.verify_transaction(reference)
+
+        # Update payment status based on verification
+        try:
+            from .models import Payment
+
+            payment = Payment.objects.filter(reference=reference).first()
+
+            if (
+                verification.get("status")
+                and verification["data"]["status"] == "success"
+            ):
+                # Payment successful
+                payment_amount = (
+                    verification["data"]["amount"] / 100
+                )  # Convert from kobo
+
+                if payment:
+                    payment.status = "SUCCESSFUL"
+                    payment.amount = payment_amount
+                    payment.payment_date = timezone.now()
+                    payment.payment_details.update(
+                        {
+                            "status": "success",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": verification["data"].get("reference"),
+                            "paystack_message": verification["message"],
+                        }
+                    )
+                    payment.save()
+            else:
+                # Payment failed
+                if payment:
+                    payment.status = "FAILED"
+                    payment.payment_details.update(
+                        {
+                            "status": "failed",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": verification.get("data", {}).get(
+                                "reference"
+                            ),
+                            "paystack_message": verification.get(
+                                "message", "Payment verification failed"
+                            ),
+                            "failure_reason": verification.get("data", {}).get(
+                                "gateway_response"
+                            ),
+                        }
+                    )
+                    payment.save()
+
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Payment verification failed",
+                        "details": verification.get("data", {}).get(
+                            "gateway_response", "Payment was not successful"
+                        ),
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except Exception as e:
+            logger.error(f"Error updating payment status: {str(e)}", exc_info=True)
+            # Continue with the registration even if payment update fails
+            payment_amount = (
+                verification["data"]["amount"] / 100 if verification.get("data") else 0
+            )
+
+        # Combine all data for final registration
+        registration_data = {
+            **step1_data,
+            **step2_data,
+            **step3_data,
+            "payment_reference": reference,
+            "payment_amount": payment_amount,
+        }
+        # Normalize empty billing_cycle: FREE/TRIAL -> 'FREE' (free forever), paid -> 'MONTHLY'
+        registration_data["billing_cycle"] = _normalize_billing_cycle(
+            registration_data.get("billing_cycle"),
+            registration_data.get("subscription_plan"),
+        )
+
+        # Create church and admin user
+        serializer = ChurchRegistrationCompleteSerializer(data=registration_data)
+
+        if serializer.is_valid():
+            result = serializer.save()
+
+            # Delete the session after successful registration
+            session.delete()
+
+            # Generate JWT tokens
+            refresh = RefreshToken.for_user(result["user"])
+
+            return Response(
+                {
+                    "status": "success",
+                    "message": "Registration completed successfully",
+                    "user": UserSerializer(result["user"]).data,
+                    "church": ChurchSerializer(result["church"]).data,
+                    "tokens": {
+                        "refresh": str(refresh),
+                        "access": str(refresh.access_token),
+                    },
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        return Response(
+            {"status": "error", "errors": serializer.errors},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def registration_payment_callback(request):
+    """
+    Handle Paystack redirect after payment
+    This is where Paystack redirects users after payment
+    """
+    reference = request.query_params.get("reference")
+
+    if not reference:
+        return Response(
+            {"status": "error", "message": "Payment reference is required"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Extract session_id from reference (format: REG_{session_id}_{timestamp})
+    try:
+        parts = reference.split("_")
+        session_id = parts[1] if len(parts) >= 3 else None
+
+        if not session_id:
+            return Response(
+                {"status": "error", "message": "Invalid payment reference"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Return session_id and reference for frontend to complete registration
+        return Response(
+            {
+                "status": "success",
+                "message": "Payment received. Please complete registration.",
+                "reference": reference,
+                "session_id": session_id,
+                "next_step": "registration/verify-payment/",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        logger.error(f"Error processing payment callback: {str(e)}", exc_info=True)
+        return Response(
+            {
+                "status": "error",
+                "message": "An error occurred processing payment callback",
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

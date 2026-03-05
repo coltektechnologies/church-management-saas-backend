@@ -27,7 +27,9 @@ class MemberView(APIView):
         tags=["Members"],
     )
     def get(self, request):
-        members = Member.objects.filter(church=request.user.church)
+        members = Member.objects.filter(
+            church=request.user.church, deleted_at__isnull=True
+        )
         serializer = MemberSerializer(members, many=True, context={"request": request})
         return Response(serializer.data)
 
@@ -161,32 +163,40 @@ class MemberDetailAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @swagger_auto_schema(
-        operation_description="Delete a member (soft delete - Platform admins only)",
+        operation_description="Delete a member (soft delete - Platform admins and church admins only)",
         responses={
             204: "Member deleted successfully",
-            403: "Forbidden",
+            403: "Forbidden - Only platform administrators or church administrators can delete members",
             404: "Member not found",
         },
         tags=["Members"],
     )
     def delete(self, request, pk):
-        if not request.user.is_platform_admin:
-            return Response(
-                {"error": "Only platform administrators can delete members"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         member = self.get_object(pk, request.user)
         if member is None:
             return Response(
                 {"error": "Member not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
+        # Check if user is a platform admin or a church admin for the member's church
+        if not request.user.is_platform_admin and (
+            not hasattr(request.user, "church")
+            or request.user.church_id != member.church_id
+        ):
+            return Response(
+                {
+                    "error": "Only platform administrators or church administrators can delete members"
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         # Soft delete
         member.deleted_at = timezone.now()
         member.save()
 
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(
+            {"message": "Member deleted successfully"}, status=status.HTTP_200_OK
+        )
 
 
 # ==========================================

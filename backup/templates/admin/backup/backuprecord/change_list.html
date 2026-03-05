@@ -1,0 +1,55 @@
+{% extends "admin/change_list.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+  /* Widen backup changelist table and columns */
+  .app-backup.model-backuprecord #result_list {
+    table-layout: auto;
+    min-width: 100%;
+  }
+  .app-backup.model-backuprecord #result_list thead th,
+  .app-backup.model-backuprecord #result_list tbody th,
+  .app-backup.model-backuprecord #result_list tbody td {
+    padding: 10px 14px;
+    min-width: 100px;
+    white-space: nowrap;
+  }
+  .app-backup.model-backuprecord #result_list th:nth-child(1),
+  .app-backup.model-backuprecord #result_list td:nth-child(1) { min-width: 24px; width: 24px; }  /* checkbox */
+  .app-backup.model-backuprecord #result_list th:nth-child(2),
+  .app-backup.model-backuprecord #result_list td:nth-child(2) { min-width: 280px; }  /* Id */
+  .app-backup.model-backuprecord #result_list th:nth-child(3),
+  .app-backup.model-backuprecord #result_list td:nth-child(3) { min-width: 200px; }  /* Backup type */
+  .app-backup.model-backuprecord #result_list th:nth-child(4),
+  .app-backup.model-backuprecord #result_list td:nth-child(4) { min-width: 280px; }  /* Church id */
+  .app-backup.model-backuprecord #result_list th:nth-child(5),
+  .app-backup.model-backuprecord #result_list td:nth-child(5) { min-width: 420px; white-space: normal; }  /* File path */
+  .app-backup.model-backuprecord #result_list th:nth-child(6),
+  .app-backup.model-backuprecord #result_list td:nth-child(6) { min-width: 110px; }  /* File size */
+  .app-backup.model-backuprecord #result_list th:nth-child(7),
+  .app-backup.model-backuprecord #result_list td:nth-child(7) { min-width: 90px; }   /* Download */
+  .app-backup.model-backuprecord #result_list th:nth-child(8),
+  .app-backup.model-backuprecord #result_list td:nth-child(8) { min-width: 280px; }  /* Created by id */
+  .app-backup.model-backuprecord #result_list th:nth-child(9),
+  .app-backup.model-backuprecord #result_list td:nth-child(9) { min-width: 160px; }  /* Created at */
+  .app-backup.model-backuprecord #result_list th:nth-child(10),
+  .app-backup.model-backuprecord #result_list td:nth-child(10) { min-width: 160px; white-space: normal; }  /* Notes */
+  .app-backup.model-backuprecord .results {
+    overflow-x: auto;
+  }
+</style>
+{% endblock %}
+
+{% block result_list %}
+  <p class="help" style="margin-bottom: 8px;">Clear the <strong>Backup type</strong> filter to see all backups (full, lightweight, tenant). Click <strong>Download</strong> to save the file.</p>
+  {{ block.super }}
+{% endblock %}
+
+{% block object-tools-items %}
+    <li>
+        <a href="{% url 'admin:backup_backuprecord_create' %}" class="addlink">Create backup</a>
+    </li>
+    {{ block.super }}
+{% endblock %}

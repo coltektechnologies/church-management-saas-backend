@@ -4,6 +4,38 @@ from rest_framework import serializers
 from members.models import Member, MemberLocation, Visitor
 
 
+class MemberListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Member
+        fields = [
+            "id",
+            "full_name",
+            "gender",
+            "membership_status",
+            "member_since",
+            "phone_primary",
+            "email",
+        ]
+        read_only_fields = fields
+
+    full_name = serializers.SerializerMethodField()
+    phone_primary = serializers.SerializerMethodField()
+    email = serializers.SerializerMethodField()
+
+    def get_full_name(self, obj):
+        return obj.full_name
+
+    def get_phone_primary(self, obj):
+        if hasattr(obj, "location") and obj.location:
+            return obj.location.phone_primary
+        return None
+
+    def get_email(self, obj):
+        if hasattr(obj, "location") and obj.location:
+            return obj.location.email
+        return None
+
+
 class MemberLocationSerializer(serializers.ModelSerializer):
     class Meta:
         model = MemberLocation

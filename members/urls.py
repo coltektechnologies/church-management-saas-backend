@@ -1,8 +1,11 @@
 from django.urls import path
 
-from .views import MemberDetailAPIView  # Member views; Visitor views
-from .views import (MemberView, VisitorDetailAPIView, VisitorToMemberView,
-                    VisitorView)
+from .api_views import get_members_by_church
+# Import views from their respective modules
+from .views.member_views import (MemberCreateView, MemberDetailAPIView,
+                                 MemberView)
+from .views.visitor_views import (VisitorDetailAPIView, VisitorToMemberView,
+                                  VisitorView)
 
 app_name = "members"
 
@@ -10,7 +13,8 @@ urlpatterns = [
     # ==========================================
     # MEMBER ENDPOINTS
     # ==========================================
-    path("members/", MemberView.as_view(), name="member-list-create"),
+    path("members/", MemberView.as_view(), name="member-list"),
+    path("members/create/", MemberCreateView.as_view(), name="member-create"),
     path("members/<uuid:pk>/", MemberDetailAPIView.as_view(), name="member-detail"),
     # ==========================================
     # VISITOR ENDPOINTS
@@ -25,4 +29,8 @@ urlpatterns = [
         VisitorToMemberView.as_view(),
         name="visitor-to-member",
     ),
+    # ==========================================
+    # API ENDPOINTS
+    # ==========================================
+    path("members/by-church/", get_members_by_church, name="api-members-by-church"),
 ]

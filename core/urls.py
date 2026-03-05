@@ -1,5 +1,10 @@
+from django.contrib.auth.decorators import login_required
 from django.urls import path
 
-from core import views
+from core.views.activity import ActivityFeedView
 
-urlpatterns = []
+app_name = "core"
+
+urlpatterns = [
+    path("activity/", login_required(ActivityFeedView.as_view()), name="activity_feed"),
+]

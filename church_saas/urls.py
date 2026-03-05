@@ -10,7 +10,7 @@ from rest_framework import permissions
 schema_view = get_schema_view(
     openapi.Info(
         title="Church Management SAAS API",
-        default_version="v1.0",
+        default_version="1.0",
         description="""
         # Church Management System API Documentation
 
@@ -60,6 +60,7 @@ urlpatterns = [
     # ADMIN PANEL
     # ==========================================
     path("admin/", admin.site.urls),
+    path("django-rq/", include("django_rq.urls")),
     # ==========================================
     # API DOCUMENTATION
     # ==========================================
@@ -72,12 +73,20 @@ urlpatterns = [
     # ==========================================
     # API ENDPOINTS
     # ==========================================
+    # API Endpoints
     path("api/auth/", include("accounts.urls")),
     path("api/members/", include("members.urls")),
-    path("api/departments/", include("departments.urls")),
-    path("api/secretariat/", include("secretariat.urls")),
-    path("api/treasury/", include("treasury.urls")),
     path("api/announcements/", include("announcements.urls")),
+    path("api/treasury/", include("treasury.urls")),
+    path("api/notifications/", include("notifications.urls")),
+    # Departments mounted at api/ so router's 'departments/' gives api/departments/... (not api/departments/departments/...)
+    path("api/", include("departments.urls")),
+    path("api/reports/", include("reports.urls")),
+    path("api/analytics/", include("analytics.urls")),
+    path("api/files/", include("files.urls")),
+    path("api/admin/", include("backup.urls")),
+    path("api/activity/", include("core.urls_api")),
+    path("", include("core.urls")),
     path("api/notifications/", include("notifications.urls")),
 ]
 

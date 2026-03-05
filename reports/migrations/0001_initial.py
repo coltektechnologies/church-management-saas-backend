@@ -1,0 +1,184 @@
+# Generated migration for reports app
+
+import uuid
+
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = [
+        ("accounts", "0001_initial"),
+        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name="ReportCache",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("report_type", models.CharField(db_index=True, max_length=80)),
+                (
+                    "cache_key",
+                    models.CharField(db_index=True, max_length=255, unique=True),
+                ),
+                ("result_data", models.JSONField(default=dict)),
+                ("file_path", models.CharField(blank=True, max_length=500, null=True)),
+                ("format", models.CharField(blank=True, max_length=20, null=True)),
+                ("date_from", models.DateField(blank=True, null=True)),
+                ("date_to", models.DateField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("expires_at", models.DateTimeField()),
+                (
+                    "church",
+                    models.ForeignKey(
+                        db_column="church_id",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="report_caches",
+                        to="accounts.church",
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "Report Cache",
+                "verbose_name_plural": "Report Caches",
+                "db_table": "report_caches",
+                "ordering": ["-created_at"],
+            },
+        ),
+        migrations.CreateModel(
+            name="ScheduledReport",
+            fields=[
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                (
+                    "report_type",
+                    models.CharField(
+                        choices=[
+                            ("members", "Members Report"),
+                            ("members_growth", "Members Growth"),
+                            ("members_demographics", "Members Demographics"),
+                            ("departments", "Departments Report"),
+                            ("finance_income", "Finance - Income"),
+                            ("finance_expenses", "Finance - Expenses"),
+                            ("finance_balance_sheet", "Finance - Balance Sheet"),
+                            ("finance_cash_flow", "Finance - Cash Flow"),
+                            ("announcements", "Announcements Report"),
+                            ("audit_trail", "Audit Trail"),
+                            ("custom", "Custom Report"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "frequency",
+                    models.CharField(
+                        choices=[
+                            ("DAILY", "Daily"),
+                            ("WEEKLY", "Weekly"),
+                            ("BIWEEKLY", "Bi-weekly"),
+                            ("MONTHLY", "Monthly"),
+                            ("QUARTERLY", "Quarterly"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "format",
+                    models.CharField(
+                        choices=[
+                            ("json", "JSON"),
+                            ("pdf", "PDF"),
+                            ("xlsx", "Excel"),
+                            ("csv", "CSV"),
+                        ],
+                        default="pdf",
+                        max_length=10,
+                    ),
+                ),
+                ("custom_config", models.JSONField(blank=True, default=dict)),
+                (
+                    "recipient_emails",
+                    models.JSONField(
+                        blank=True,
+                        default=list,
+                        help_text="List of email addresses to receive the report",
+                    ),
+                ),
+                ("is_active", models.BooleanField(default=True)),
+                ("last_run_at", models.DateTimeField(blank=True, null=True)),
+                ("next_run_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "celery_task_id",
+                    models.CharField(blank=True, max_length=255, null=True),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "church",
+                    models.ForeignKey(
+                        db_column="church_id",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="scheduled_reports",
+                        to="accounts.church",
+                    ),
+                ),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="scheduled_reports",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
+            options={
+                "verbose_name": "Scheduled Report",
+                "verbose_name_plural": "Scheduled Reports",
+                "db_table": "scheduled_reports",
+                "ordering": ["next_run_at", "name"],
+            },
+        ),
+        migrations.AddIndex(
+            model_name="reportcache",
+            index=models.Index(
+                fields=["church", "report_type"], name="report_cach_church_idx"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="reportcache",
+            index=models.Index(fields=["expires_at"], name="report_cach_expires_idx"),
+        ),
+        migrations.AddIndex(
+            model_name="scheduledreport",
+            index=models.Index(
+                fields=["church", "is_active"], name="sched_rep_church_active_idx"
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="scheduledreport",
+            index=models.Index(fields=["next_run_at"], name="sched_rep_next_run_idx"),
+        ),
+    ]

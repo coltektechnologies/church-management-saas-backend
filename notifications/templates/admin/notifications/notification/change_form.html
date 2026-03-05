@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+
+{% block content %}
+  {% if has_program_link and program_link %}
+  <div class="module" style="margin-bottom: 20px; padding: 15px; background: #e7f3ff; border: 1px solid #b3d7ff; border-radius: 4px;">
+    <h3 style="margin-top: 0; color: #004085;">Program Approval</h3>
+    <p style="margin-bottom: 15px;">This notification is for a program pending approval. Click below to view the program and approve or reject it:</p>
+    <a href="{{ program_link }}" class="button" style="background: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; display: inline-block;">→ View Program & Approve/Reject</a>
+  </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

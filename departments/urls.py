@@ -1,5 +1,156 @@
-from django.urls import path
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
+from rest_framework_nested.routers import NestedDefaultRouter
 
-from departments import views
+from .api_views import get_departments_by_church, get_members_by_church
+# Import views directly from their modules to avoid circular imports
+from .views.department_views import DepartmentViewSet, MemberDepartmentViewSet
+from .views.program_step_views import DepartmentListForProgramAPIView
+from .views.program_views import ProgramBudgetItemViewSet, ProgramViewSet
 
-urlpatterns = []
+app_name = "departments"
+
+# Main router for top-level endpoints
+router = DefaultRouter()
+router.register(r"departments", DepartmentViewSet, basename="department")
+router.register(
+    r"member-departments", MemberDepartmentViewSet, basename="member-department"
+)
+
+# Nested router for programs under departments
+program_router = NestedDefaultRouter(router, r"departments", lookup="department")
+program_router.register(r"programs", ProgramViewSet, basename="department-programs")
+
+# Nested router for budget items under programs
+budget_item_router = NestedDefaultRouter(program_router, r"programs", lookup="program")
+budget_item_router.register(
+    r"budget-items", ProgramBudgetItemViewSet, basename="program-budget-items"
+)
+
+urlpatterns = [
+    # ==========================================
+    # IMPORTANT: These unauthenticated endpoints MUST come BEFORE router URLs
+    # to prevent DepartmentViewSet (IsAuthenticated) from intercepting them
+    # ==========================================
+    path(
+        "departments/by-church/",
+        get_departments_by_church,
+        name="api-departments-by-church",
+    ),
+    path(
+        "departments/for-program/",
+        DepartmentListForProgramAPIView.as_view(),
+        name="departments-for-program",
+    ),
+    # Include nested routers BEFORE main router so departments/{id}/programs/ matches
+    # ProgramViewSet (GET+POST) instead of DepartmentViewSet.programs (GET only)
+    path("", include(program_router.urls)),
+    path("", include(budget_item_router.urls)),
+    path("", include(router.urls)),
+    # 5-step program flow
+    path(
+        "programs/step1/",
+        ProgramViewSet.as_view({"post": "step1_create"}),
+        name="program-step1",
+    ),
+    # Direct program URLs (not nested under departments)
+    path(
+        "programs/",
+        ProgramViewSet.as_view({"get": "list", "post": "create"}),
+        name="program-list",
+    ),
+    path(
+        "programs/<uuid:pk>/",
+        ProgramViewSet.as_view(
+            {
+                "get": "retrieve",
+                "put": "update",
+                "patch": "partial_update",
+                "delete": "destroy",
+            }
+        ),
+        name="program-detail",
+    ),
+    path(
+        "programs/<uuid:pk>/step2/",
+        ProgramViewSet.as_view(
+            {"put": "step2_budget_items", "patch": "step2_budget_items"}
+        ),
+        name="program-step2",
+    ),
+    path(
+        "programs/<uuid:pk>/step3/",
+        ProgramViewSet.as_view(
+            {"put": "step3_justification", "patch": "step3_justification"}
+        ),
+        name="program-step3",
+    ),
+    path(
+        "programs/<uuid:pk>/step4/documents/",
+        ProgramViewSet.as_view({"post": "step4_upload_document"}),
+        name="program-step4",
+    ),
+    path(
+        "programs/<uuid:pk>/step5/review/",
+        ProgramViewSet.as_view({"get": "step5_review"}),
+        name="program-step5-review",
+    ),
+    path(
+        "programs/<uuid:pk>/step5/submit/",
+        ProgramViewSet.as_view({"post": "step5_submit"}),
+        name="program-step5-submit",
+    ),
+    path(
+        "programs/<uuid:pk>/submit/",
+        ProgramViewSet.as_view({"post": "submit_program"}),
+        name="program-submit",
+    ),
+    path(
+        "programs/<uuid:pk>/review/",
+        ProgramViewSet.as_view({"post": "review_program"}),
+        name="program-review",
+    ),
+]
+
+
+# URL Patterns Documentation:
+#
+# Department Head Form Endpoints (NO AUTH REQUIRED):
+# GET    /departments/api/departments/by-church/?church_id=<uuid> - Get departments by church ID
+# GET    /departments/api/members/members/by-church/?church_id=<uuid> - Get members by church ID
+#
+# Department Endpoints:
+# GET    /api/departments/                          - List all departments
+# POST   /api/departments/                          - Create a new department
+# GET    /api/departments/{id}/                     - Get department details
+# PUT    /api/departments/{id}/                     - Update department
+# PATCH  /api/departments/{id}/                     - Partial update
+# DELETE /api/departments/{id}/                     - Delete department
+#
+# Department Custom Actions:
+# GET    /api/departments/{id}/members/             - Get department members
+# POST   /api/departments/{id}/assign_member/       - Assign member to department
+# DELETE /api/departments/{id}/members/{member_id}/  - Remove member from department
+# PUT    /api/departments/{id}/head/                - Assign department head
+# GET    /api/departments/statistics/               - Get statistics
+#
+# Program Endpoints (nested under departments):
+# GET    /api/departments/{department_id}/programs/  - List programs for a department
+# POST   /api/departments/{department_id}/programs/  - Create a program for a department
+#
+# Program Endpoints (direct access):
+# GET    /api/programs/                             - List all programs
+# POST   /api/programs/                             - Create a new program
+# GET    /api/programs/{id}/                        - Get program details
+# PUT    /api/programs/{id}/                        - Update program
+# PATCH  /api/programs/{id}/                        - Partial update
+# DELETE /api/programs/{id}/                        - Delete program
+# POST   /api/programs/{id}/submit/                 - Submit program for approval
+# POST   /api/programs/{id}/review/                 - Approve/Reject program (admin)
+#
+# Program Budget Item Endpoints (nested under programs):
+# GET    /api/departments/{department_id}/programs/{program_id}/budget-items/     - List budget items
+# POST   /api/departments/{department_id}/programs/{program_id}/budget-items/     - Create budget item
+# GET    /api/departments/{department_id}/programs/{program_id}/budget-items/{id}/ - Get budget item
+# PUT    /api/departments/{department_id}/programs/{program_id}/budget-items/{id}/ - Update budget item
+# DELETE /api/departments/{department_id}/programs/{program_id}/budget-items/{id}/ - Delete budget item

@@ -1,0 +1,11 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block object-tools-items %}
+  {% if original.file_path %}
+    <li>
+      <a href="{% url 'admin:backup_backuprecord_download' original.pk %}" class="viewsitelink">Download backup file</a>
+    </li>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}
