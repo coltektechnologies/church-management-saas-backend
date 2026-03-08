@@ -254,29 +254,31 @@ class ChurchRegistrationStep3Serializer(serializers.Serializer):
             "BASIC": {
                 "price": 1,
                 "users": 50,
-                "features": ["Basic Reporting", "Email Support"],
-                "description": "Up to 50 users",
+                "features": ["Basic Reporting", "Email Support", "Up to 50 users"],
+                "description": "Finance tracking, SMS alerts, and 5 admin accounts.",
             },
             "PREMIUM": {
-                "price": 1,
+                "price": 20,
                 "users": 200,
                 "features": [
                     "Advanced Reporting",
                     "Priority Support",
                     "SMS Notifications",
+                    "Up to 200 users",
                 ],
-                "description": "Up to 200 users",
+                "description": "Advanced analytics, unlimited admins and full coordination",
             },
             "ENTERPRISE": {
-                "price": 1,
+                "price": 30,
                 "users": 1000,
                 "features": [
                     "Custom Reporting",
                     "24/7 Support",
                     "API Access",
                     "Custom Integrations",
+                    "Up to 1000 users",
                 ],
-                "description": "Up to 1000 users",
+                "description": "Custom features, enterprise security, and priority support",
             },
         }
 

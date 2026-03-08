@@ -39,9 +39,18 @@ class MNotifyService:
         # Clean phone number (remove + and any non-digit characters)
         phone = "".join(filter(str.isdigit, str(to_phone)))
 
-        # If it starts with 0, assume it's a local number and add Ghana country code
+        # Normalize Ghana numbers: 0XXXXXXXXX -> 233XXXXXXXXX; 9 digits (no 0/233) -> 233XXXXXXXXX
         if phone.startswith("0"):
             phone = "233" + phone[1:]
+        elif len(phone) == 9 and phone[0] in "23456789":
+            phone = "233" + phone
+
+        if not phone or len(phone) < 9:
+            return {
+                "success": False,
+                "error": "Invalid or missing phone number",
+                "code": "INVALID_PHONE",
+            }
 
         try:
             if group_ids:

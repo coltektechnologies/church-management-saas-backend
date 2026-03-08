@@ -3,9 +3,9 @@ from django.urls import path
 from .views import (AnalyticsAnnouncementsStatsView,
                     AnalyticsDepartmentsPerformanceView,
                     AnalyticsFinanceKPIsView, AnalyticsFinanceTrendsView,
-                    AnalyticsMembersStatsView, DashboardAdminView,
-                    DashboardDepartmentView, DashboardSecretariatView,
-                    DashboardTreasuryView)
+                    AnalyticsMembersStatsView, AnalyticsTitheOfferingStatsView,
+                    DashboardAdminView, DashboardDepartmentView,
+                    DashboardSecretariatView, DashboardTreasuryView)
 
 app_name = "analytics"
 
@@ -33,6 +33,11 @@ urlpatterns = [
         "finance/trends/", AnalyticsFinanceTrendsView.as_view(), name="finance-trends"
     ),
     path("finance/kpis/", AnalyticsFinanceKPIsView.as_view(), name="finance-kpis"),
+    path(
+        "finance/tithe-offerings/",
+        AnalyticsTitheOfferingStatsView.as_view(),
+        name="tithe-offerings-stats",
+    ),
     path(
         "announcements/stats/",
         AnalyticsAnnouncementsStatsView.as_view(),

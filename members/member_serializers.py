@@ -238,8 +238,13 @@ class MemberCreateSerializer(serializers.ModelSerializer):
                 # Skip if department doesn't exist
                 pass
 
-        # Handle system access
-        if validated_data.get("has_system_access") and validated_data.get("email"):
+        # Implicit system access: if sending credentials via email or SMS, create system access
+        has_system_access = validated_data.get("has_system_access", False)
+        send_email = validated_data.get("send_credentials_via_email", False)
+        send_sms = validated_data.get("send_credentials_via_sms", False)
+        if (has_system_access or send_email or send_sms) and validated_data.get(
+            "email"
+        ):
             self._create_system_user(member, validated_data["email"], church)
 
         return member

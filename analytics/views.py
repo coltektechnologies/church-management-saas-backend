@@ -206,6 +206,38 @@ class AnalyticsAnnouncementsStatsView(APIView):
         return Response(data)
 
 
+class AnalyticsTitheOfferingStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Tithe and offerings: monthly trend, this month totals and weekly breakdown.",
+        manual_parameters=[
+            openapi.Parameter(
+                "period_months",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                default=9,
+                description="Number of months for trend (default 9)",
+            ),
+        ],
+        tags=["Analytics"],
+    )
+    def get(self, request):
+        church = _church_from_request(request)
+        if not church:
+            return Response(
+                {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            period_months = int(request.query_params.get("period_months") or 9)
+        except (ValueError, TypeError):
+            period_months = 9
+        data = DashboardService(church).tithe_offering_stats(
+            period_months=period_months
+        )
+        return Response(data)
+
+
 class AnalyticsDepartmentsPerformanceView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -3,6 +3,7 @@ import time
 import uuid
 
 from django.core.cache import cache
+from django.db.models import Q
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -1681,6 +1682,51 @@ class ChurchGroupMemberDetailAPIView(APIView):
 # MULTI-STEP REGISTRATION FLOW (with payment)
 # ==========================================
 
+# Plan IDs and display names for the registration plans API (must match serializer choices)
+REGISTRATION_PLAN_CHOICES = [
+    ("TRIAL", "30-Day Free Trial"),
+    ("FREE", "Free"),
+    ("BASIC", "Basic"),
+    ("PREMIUM", "Premium"),
+    ("ENTERPRISE", "Enterprise"),
+]
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def registration_plans(request):
+    """
+    Return list of subscription plans for the frontend (pricing, features, etc.).
+    Single source of truth for registration plan options.
+    """
+    serializer = ChurchRegistrationStep3Serializer()
+    plans = []
+    for plan_id, plan_name in REGISTRATION_PLAN_CHOICES:
+        details_m = serializer.get_plan_details(plan_id, "MONTHLY")
+        details_y = (
+            serializer.get_plan_details(plan_id, "YEARLY")
+            if plan_id not in ("TRIAL", "FREE")
+            else details_m
+        )
+        monthly_price = details_m.get("monthly_price", 0) or details_m.get(
+            "total_price", 0
+        )
+        yearly_price = (
+            details_y.get("total_price", 0) if plan_id not in ("TRIAL", "FREE") else 0
+        )
+        plans.append(
+            {
+                "id": plan_id,
+                "name": plan_name,
+                "monthly_price": monthly_price,
+                "yearly_price": yearly_price,
+                "description": details_m.get("description", ""),
+                "features": details_m.get("features", []),
+                "requires_payment": details_m.get("requires_payment", False),
+            }
+        )
+    return Response(plans)
+
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -1724,9 +1770,11 @@ def registration_step2(request):
         )
 
     try:
-        # Get the registration session
+        # Get the registration session (allow step=1 or step=2 so user can go Back and re-submit)
         session = RegistrationSession.objects.get(
-            id=session_id, step=1, expires_at__gt=timezone.now()
+            Q(id=session_id)
+            & (Q(step=1) | Q(step=2))
+            & Q(expires_at__gt=timezone.now())
         )
     except RegistrationSession.DoesNotExist:
         return Response(
@@ -1778,9 +1826,11 @@ def registration_step3(request):
         )
 
     try:
-        # Get the registration session
+        # Get the registration session (allow step=2 or step=3 so user can go Back and re-submit)
         session = RegistrationSession.objects.get(
-            id=session_id, step=2, expires_at__gt=timezone.now()
+            Q(id=session_id)
+            & (Q(step=2) | Q(step=3))
+            & Q(expires_at__gt=timezone.now())
         )
     except RegistrationSession.DoesNotExist:
         return Response(
