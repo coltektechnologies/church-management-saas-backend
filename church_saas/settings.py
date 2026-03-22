@@ -105,7 +105,7 @@ else:
             "PORT": config("DB_PORT", default="5433"),
         }
     }
-
+# DATABASES["default"]= dj_database_url.parse(DATABASE_URL)
 # Custom User Model
 AUTH_USER_MODEL = "accounts.User"
 
