@@ -11,8 +11,9 @@ from django.utils.safestring import mark_safe
 from accounts.models import Church
 from members.models import Member, MemberLocation
 
-from .models import (Department, DepartmentHead, MemberDepartment, Program,
-                     ProgramBudgetItem, ProgramDocument)
+from .models import (Department, DepartmentActivity, DepartmentHead,
+                     MemberDepartment, Program, ProgramBudgetItem,
+                     ProgramDocument)
 
 # ==========================================
 # INLINE ADMINS
@@ -38,6 +39,25 @@ class DepartmentHeadInline(admin.TabularInline):
     raw_id_fields = ["member"]
     fields = ["member", "assigned_at"]
     readonly_fields = ["assigned_at"]
+
+
+class DepartmentActivityInline(admin.TabularInline):
+    """Inline for department activities (events)"""
+
+    model = DepartmentActivity
+    extra = 0
+    max_num = 10
+    fields = [
+        "title",
+        "status",
+        "start_date",
+        "end_date",
+        "start_time",
+        "end_time",
+        "location",
+    ]
+    readonly_fields = []
+    show_change_link = True
 
 
 class ProgramBudgetItemInline(admin.TabularInline):
@@ -185,6 +205,7 @@ class DepartmentAdmin(admin.ModelAdmin):
     inlines = [
         DepartmentHeadInline,
         MemberDepartmentInline,
+        DepartmentActivityInline,
     ]
 
     def is_active_badge(self, obj):
@@ -251,6 +272,284 @@ class DepartmentAdmin(admin.ModelAdmin):
             except Department.DoesNotExist:
                 pass
         return super().changeform_view(request, object_id, form_url, extra_context)
+
+
+# Notification choices for activity form (must match activity_notifications)
+_NOTIFY_CHOICES = [
+    ("department_members", "Department members only"),
+    ("all_church", "All church members"),
+    ("specific_members", "Specific members (enter IDs below)"),
+]
+
+
+class DepartmentActivityForm(forms.ModelForm):
+    """Activity form with HTML5 date/time (no repeated Today/Now) and notification options."""
+
+    send_notification = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Send notification when saving",
+    )
+    notify_to = forms.ChoiceField(
+        choices=_NOTIFY_CHOICES,
+        required=False,
+        initial="department_members",
+        label="Send to",
+    )
+    member_ids_raw = forms.CharField(
+        required=False,
+        widget=forms.Textarea(attrs={"rows": 2}),
+        label="Member IDs (one per line, for Specific members only)",
+    )
+    send_email = forms.BooleanField(required=False, initial=True, label="Send email")
+    send_sms = forms.BooleanField(required=False, initial=False, label="Send SMS")
+
+    class Meta:
+        model = DepartmentActivity
+        fields = [
+            "title",
+            "description",
+            "status",
+            "location",
+            "start_date",
+            "end_date",
+            "start_time",
+            "end_time",
+            "department",
+            "church",
+        ]
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "end_date": forms.DateInput(attrs={"type": "date"}),
+            "start_time": forms.TimeInput(attrs={"type": "time"}),
+            "end_time": forms.TimeInput(attrs={"type": "time"}),
+        }
+
+
+@admin.register(DepartmentActivity)
+class DepartmentActivityAdmin(admin.ModelAdmin):
+    """Department activities (events): title, date, time, location, description."""
+
+    form = DepartmentActivityForm
+    list_display = [
+        "title",
+        "department",
+        "church",
+        "status",
+        "start_date",
+        "end_date",
+        "start_time",
+        "end_time",
+        "location",
+        "is_upcoming_display",
+        "created_at",
+    ]
+    list_filter = ["status", "church", "department", "start_date"]
+    search_fields = ["title", "description", "location", "department__name"]
+    raw_id_fields = ["department", "church", "created_by"]
+    readonly_fields = ["created_at", "updated_at", "deleted_at"]
+    date_hierarchy = "start_date"
+    change_form_template = "admin/departments/departmentactivity/change_form.html"
+
+    fieldsets = (
+        (
+            "Activity",
+            {
+                "fields": (
+                    "title",
+                    "description",
+                    "status",
+                    "location",
+                ),
+            },
+        ),
+        (
+            "Date & time",
+            {"fields": ("start_date", "end_date", "start_time", "end_time")},
+        ),
+        (
+            "Notification",
+            {
+                "fields": (
+                    "send_notification",
+                    "notify_to",
+                    "member_ids_raw",
+                    "send_email",
+                    "send_sms",
+                ),
+                "description": "Optionally send email and/or SMS when you save. Choose who receives it.",
+            },
+        ),
+        (
+            "Organization",
+            {
+                "fields": ("department", "church"),
+                "classes": ("collapse",),
+                "description": "Required for saving. Usually set from your church.",
+            },
+        ),
+    )
+
+    def is_upcoming_display(self, obj):
+        from django.utils import timezone
+
+        now = timezone.now()
+        if obj.end_date < now.date():
+            return format_html('<span style="color:#6c757d;">Past</span>')
+        if obj.start_date > now.date():
+            return format_html('<span style="color:#28a745;">Upcoming</span>')
+        return format_html('<span style="color:#ffc107;">Ongoing</span>')
+
+    is_upcoming_display.short_description = "Time"
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            if obj.department and not obj.church_id:
+                obj.church = obj.department.church
+            elif (
+                not obj.church_id
+                and hasattr(request.user, "church")
+                and request.user.church
+            ):
+                obj.church = request.user.church
+            if not obj.created_by_id:
+                obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+        # Send notification if requested from the form
+        if form.cleaned_data.get("send_notification"):
+            from departments.services.activity_notifications import \
+                send_activity_notifications
+
+            notify_to = form.cleaned_data.get("notify_to") or "department_members"
+            member_ids = None
+            if notify_to == "specific_members":
+                raw = form.cleaned_data.get("member_ids_raw") or ""
+                member_ids = [x.strip() for x in raw.splitlines() if x.strip()]
+            result = send_activity_notifications(
+                obj,
+                notify_to=notify_to,
+                member_ids=member_ids,
+                send_email=form.cleaned_data.get("send_email", True),
+                send_sms=form.cleaned_data.get("send_sms", False),
+            )
+            msg = "Notification sent: {email_sent} email(s), {sms_sent} SMS.".format(
+                email_sent=result.get("email_sent", 0),
+                sms_sent=result.get("sms_sent", 0),
+            )
+            if result.get("errors"):
+                msg += " Errors: " + "; ".join(result["errors"][:3])
+            messages.success(request, msg)
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        qs = qs.filter(deleted_at__isnull=True)
+        if request.user.is_superuser:
+            return qs
+        if hasattr(request.user, "church") and request.user.church:
+            return qs.filter(church=request.user.church)
+        return qs
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom = [
+            path(
+                "<uuid:object_id>/send-notification/",
+                self.admin_site.admin_view(self.send_notification_view),
+                name="departments_departmentactivity_send_notification",
+            ),
+        ]
+        return custom + urls
+
+    def changeform_view(self, request, object_id=None, form_url="", extra_context=None):
+        extra_context = extra_context or {}
+        if object_id:
+            extra_context["send_notification_url"] = reverse(
+                "admin:departments_departmentactivity_send_notification",
+                args=[object_id],
+            )
+        return super().changeform_view(request, object_id, form_url, extra_context)
+
+    def send_notification_view(self, request, object_id):
+        """Send SMS/email notification for this activity to chosen audience."""
+        from django import forms as django_forms
+        from django.template.response import TemplateResponse
+
+        from departments.services.activity_notifications import (
+            NOTIFY_TO_ALL_CHURCH, NOTIFY_TO_DEPARTMENT, NOTIFY_TO_SPECIFIC,
+            send_activity_notifications)
+
+        activity = get_object_or_404(DepartmentActivity, pk=object_id)
+        if not request.user.is_staff:
+            messages.error(request, "Permission denied.")
+            return HttpResponseRedirect(
+                reverse("admin:departments_departmentactivity_change", args=[object_id])
+            )
+
+        class SendNotificationForm(django_forms.Form):
+            notify_to = django_forms.ChoiceField(
+                choices=[
+                    (NOTIFY_TO_DEPARTMENT, "Department members only"),
+                    (NOTIFY_TO_ALL_CHURCH, "All church members"),
+                    (NOTIFY_TO_SPECIFIC, "Specific members (enter IDs below)"),
+                ],
+                label="Send to",
+            )
+            member_ids_raw = django_forms.CharField(
+                required=False,
+                widget=django_forms.Textarea(attrs={"rows": 3}),
+                label="Member IDs (one per line, only for Specific members)",
+            )
+            send_email = django_forms.BooleanField(initial=True, label="Send email")
+            send_sms = django_forms.BooleanField(initial=False, label="Send SMS")
+
+        if request.method == "POST":
+            form = SendNotificationForm(request.POST)
+            if form.is_valid():
+                notify_to = form.cleaned_data["notify_to"]
+                member_ids = None
+                if notify_to == NOTIFY_TO_SPECIFIC:
+                    raw = form.cleaned_data.get("member_ids_raw") or ""
+                    member_ids = [x.strip() for x in raw.splitlines() if x.strip()]
+                result = send_activity_notifications(
+                    activity,
+                    notify_to=notify_to,
+                    member_ids=member_ids,
+                    send_email=form.cleaned_data["send_email"],
+                    send_sms=form.cleaned_data["send_sms"],
+                )
+                msg = (
+                    "Notification sent: {email_sent} email(s), {sms_sent} SMS.".format(
+                        email_sent=result.get("email_sent", 0),
+                        sms_sent=result.get("sms_sent", 0),
+                    )
+                )
+                if result.get("errors"):
+                    msg += " Errors: " + "; ".join(result["errors"][:3])
+                    if len(result["errors"]) > 3:
+                        msg += " (+%s more)" % (len(result["errors"]) - 3)
+                    messages.warning(request, msg)
+                else:
+                    messages.success(request, msg)
+                return HttpResponseRedirect(
+                    reverse(
+                        "admin:departments_departmentactivity_change", args=[object_id]
+                    )
+                )
+        else:
+            form = SendNotificationForm()
+
+        context = {
+            **self.admin_site.each_context(request),
+            "title": "Send activity notification",
+            "activity": activity,
+            "form": form,
+            "opts": self.model._meta,
+        }
+        return TemplateResponse(
+            request,
+            "admin/departments/departmentactivity/send_notification.html",
+            context,
+        )
 
 
 @admin.register(MemberDepartment)

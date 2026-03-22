@@ -39,9 +39,18 @@ class MNotifyService:
         # Clean phone number (remove + and any non-digit characters)
         phone = "".join(filter(str.isdigit, str(to_phone)))
 
-        # If it starts with 0, assume it's a local number and add Ghana country code
+        # Normalize Ghana numbers: 0XXXXXXXXX -> 233XXXXXXXXX; 9 digits (no 0/233) -> 233XXXXXXXXX
         if phone.startswith("0"):
             phone = "233" + phone[1:]
+        elif len(phone) == 9 and phone[0] in "23456789":
+            phone = "233" + phone
+
+        if not phone or len(phone) < 9:
+            return {
+                "success": False,
+                "error": "Invalid or missing phone number",
+                "code": "INVALID_PHONE",
+            }
 
         try:
             if group_ids:
@@ -69,7 +78,21 @@ class MNotifyService:
 
             url = f"{endpoint}?key={self.api_key}"
             response = requests.post(url, data=data, headers=headers)
-            response_data = response.json()
+            try:
+                response_data = response.json()
+            except ValueError:
+                logger.warning(
+                    "mNotify returned non-JSON response (status=%s): %s",
+                    response.status_code,
+                    response.text[:500],
+                )
+                return {
+                    "success": False,
+                    "error": f"Invalid response from mNotify (status {response.status_code})",
+                    "code": "INVALID_RESPONSE",
+                    "status_code": response.status_code,
+                    "raw_response": {"text": response.text[:500]},
+                }
 
             if response.status_code == 200 and response_data.get("status") == "success":
                 return {
@@ -82,9 +105,21 @@ class MNotifyService:
                     "raw_response": response_data,
                 }
             else:
+                # mNotify can return message, msg, or error; log full response for debugging
+                err_msg = (
+                    response_data.get("message")
+                    or response_data.get("msg")
+                    or response_data.get("error")
+                    or f"Unknown error from mNotify (status={response_data.get('status')}, code={response_data.get('code')})"
+                )
+                logger.warning(
+                    "mNotify SMS failed: %s | raw_response=%s",
+                    err_msg,
+                    response_data,
+                )
                 return {
                     "success": False,
-                    "error": response_data.get("message", "Unknown error from mNotify"),
+                    "error": err_msg,
                     "code": response_data.get("code"),
                     "status_code": response.status_code,
                     "raw_response": response_data,

@@ -60,6 +60,18 @@ class Church(models.Model):
     address = models.TextField(blank=True, null=True)
     phone = models.CharField(max_length=50, blank=True, null=True)
     website = models.URLField(blank=True, null=True)
+    tagline = models.CharField(max_length=500, blank=True, null=True)
+    mission = models.TextField(blank=True, null=True)
+
+    # Theme / Branding (frontend defaults: primary #0B2A4A, accent #2FC4B2)
+    primary_color = models.CharField(max_length=20, default="#0B2A4A", blank=True)
+    accent_color = models.CharField(max_length=20, default="#2FC4B2", blank=True)
+    sidebar_color = models.CharField(max_length=20, default="#0B2A4A", blank=True)
+    background_color = models.CharField(max_length=20, default="#F8FAFC", blank=True)
+    dark_mode = models.BooleanField(default=False)
+
+    # Service times: [{"id": "uuid", "day": "Sunday", "time": "09:00", "label": "..."}]
+    service_times = models.JSONField(default=list, blank=True)
 
     # Configuration
     church_size = models.CharField(

@@ -441,10 +441,9 @@ class DepartmentActivity(models.Model):
     """Department Activity - Phase 1B"""
 
     ACTIVITY_STATUS_CHOICES = [
-        ("PLANNED", "Planned"),
+        ("UPCOMING", "Upcoming"),
         ("ONGOING", "Ongoing"),
-        ("COMPLETED", "Completed"),
-        ("CANCELLED", "Cancelled"),
+        ("PAST", "Past"),
     ]
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     department = models.ForeignKey(
@@ -457,9 +456,13 @@ class DepartmentActivity(models.Model):
 
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=20, choices=ACTIVITY_STATUS_CHOICES)
+    status = models.CharField(
+        max_length=20, choices=ACTIVITY_STATUS_CHOICES, default="UPCOMING"
+    )
     start_date = models.DateField()
     end_date = models.DateField()
+    start_time = models.TimeField(blank=True, null=True)
+    end_time = models.TimeField(blank=True, null=True)
 
     location = models.CharField(max_length=200, blank=True, null=True)
     expected_attendance = models.IntegerField(blank=True, null=True)

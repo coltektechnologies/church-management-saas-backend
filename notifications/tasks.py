@@ -119,6 +119,61 @@ def process_notification_batch(self, batch_id):
 
 
 @shared_task
+def process_recurring_notification_schedules():
+    """
+    Process recurring notification schedules that are due (Google Meet–style).
+    For each schedule with next_run_at <= now, create a NotificationBatch, process it,
+    then update last_run_at, occurrence_count, and next_run_at.
+    """
+    from .models import NotificationBatch, RecurringNotificationSchedule
+    from .recurrence import get_next_run_at
+
+    now = timezone.now()
+    due = RecurringNotificationSchedule.objects.filter(
+        is_active=True,
+        next_run_at__isnull=False,
+        next_run_at__lte=now,
+    )
+    for schedule in due:
+        try:
+            # Create a one-off batch from this schedule
+            batch = NotificationBatch.objects.create(
+                church=schedule.church,
+                name=f"{schedule.name} (recurring)",
+                message=schedule.message,
+                template=schedule.template,
+                target_all_members=schedule.target_all_members,
+                target_departments=schedule.target_departments,
+                target_members=schedule.target_members,
+                send_sms=schedule.send_sms,
+                send_email=schedule.send_email,
+                send_in_app=schedule.send_in_app,
+                status="PENDING",
+                scheduled_for=now,
+            )
+            # Process immediately (batch.save() would enqueue; we trigger process)
+            batch.process()
+
+            # Update schedule state
+            schedule.last_run_at = now
+            schedule.occurrence_count = (schedule.occurrence_count or 0) + 1
+            schedule.next_run_at = get_next_run_at(schedule)
+            schedule.save(
+                update_fields=[
+                    "last_run_at",
+                    "occurrence_count",
+                    "next_run_at",
+                    "updated_at",
+                ]
+            )
+            logger.info(
+                f"Recurring schedule {schedule.id} ran; next run {schedule.next_run_at}"
+            )
+        except Exception as e:
+            logger.exception(f"Recurring schedule {schedule.id} failed: {e}")
+
+
+@shared_task
 def process_scheduled_notifications():
     """Process all notifications scheduled for now"""
     from .models import EmailLog, Notification, SMSLog

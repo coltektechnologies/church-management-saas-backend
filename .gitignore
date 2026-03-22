@@ -19,3 +19,4 @@ logs/
 # Tools
 .pytest_cache/
 .mypy_cache/
+logs/django.log

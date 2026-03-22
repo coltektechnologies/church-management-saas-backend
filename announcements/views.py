@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -144,6 +146,19 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
             qs = qs.filter(publish_at__gte=start_date)
         if end_date:
             qs = qs.filter(publish_at__lte=end_date)
+
+        # "New" announcements: published within the last N days (e.g. ?new_within_days=7)
+        new_within_days = self.request.query_params.get("new_within_days", None)
+        if new_within_days is not None:
+            try:
+                days = min(max(1, int(new_within_days)), 365)
+            except (ValueError, TypeError):
+                days = 7
+            since = timezone.now() - timedelta(days=days)
+            qs = qs.filter(
+                publish_at__gte=since,
+                publish_at__lte=timezone.now(),
+            )
 
         # For non-admin users, only show published or their own announcements
         if not (self.request.user.is_staff or self.request.user.is_superuser):

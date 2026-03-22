@@ -1,0 +1,27 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Home</a>
+  &rsaquo; <a href="{% url 'admin:departments_departmentactivity_changelist' %}">Department activities</a>
+  &rsaquo; <a href="{% url 'admin:departments_departmentactivity_change' activity.pk %}">{{ activity.title|truncatewords:5 }}</a>
+  &rsaquo; Send notification
+</div>
+{% endblock %}
+
+{% block content %}
+<h1>Send activity notification</h1>
+<p><strong>Activity:</strong> {{ activity.title }} ({{ activity.department.name }})</p>
+
+<form method="post">
+  {% csrf_token %}
+  <table>
+    {{ form.as_table }}
+  </table>
+  <div style="margin-top: 15px;">
+    <input type="submit" value="Send notification" class="default">
+    <a href="{% url 'admin:departments_departmentactivity_change' activity.pk %}" class="button">Cancel</a>
+  </div>
+</form>
+{% endblock %}

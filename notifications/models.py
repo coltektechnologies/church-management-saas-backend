@@ -668,3 +668,137 @@ class NotificationBatch(models.Model):
 
         # Enqueue the processing task
         enqueue(process_batch, self.id)
+
+
+class RecurringNotificationSchedule(models.Model):
+    """
+    Recurring notification schedule (Google Meet–style).
+    Sends the same notification at a user-defined cadence: daily, weekly (specific days),
+    monthly (specific day of month), or yearly (specific date).
+    """
+
+    FREQUENCY_CHOICES = [
+        ("DAILY", "Daily"),
+        ("WEEKLY", "Weekly"),
+        ("MONTHLY", "Monthly"),
+        ("YEARLY", "Yearly"),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    church = models.ForeignKey(
+        Church,
+        on_delete=models.CASCADE,
+        related_name="recurring_notification_schedules",
+        db_column="church_id",
+    )
+
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+
+    # Content (same as NotificationBatch)
+    template = models.ForeignKey(
+        NotificationTemplate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recurring_schedules",
+    )
+    message = models.TextField()
+
+    # Target audience
+    target_all_members = models.BooleanField(default=False)
+    target_departments = models.JSONField(
+        null=True, blank=True
+    )  # List of department UUIDs
+    target_members = models.JSONField(null=True, blank=True)  # List of member UUIDs
+
+    # Channels
+    send_sms = models.BooleanField(default=False)
+    send_email = models.BooleanField(default=False)
+    send_in_app = models.BooleanField(default=False)
+
+    # Recurrence
+    frequency = models.CharField(
+        max_length=20, choices=FREQUENCY_CHOICES, default="WEEKLY"
+    )
+    interval = models.PositiveIntegerField(
+        default=1,
+        help_text="Every N days/weeks/months/years (e.g. 2 = every 2 weeks)",
+    )
+    time_of_day = models.TimeField(
+        help_text="Time of day to send (e.g. 12:00 for noon)",
+    )
+
+    # Weekly: which weekdays (0=Monday, 6=Sunday). Stored as JSON list e.g. [0,2,4]
+    weekdays = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="For WEEKLY: list of weekdays 0-6 (0=Mon, 6=Sun). E.g. [2] = Wednesday.",
+    )
+
+    # Monthly: day of month (1-31)
+    month_day = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="For MONTHLY: day of month (1-31).",
+    )
+
+    # Yearly: month (1-12) and day of month (1-31)
+    year_month = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="For YEARLY: month (1-12)."
+    )
+    year_month_day = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="For YEARLY: day of month (1-31)."
+    )
+
+    # Window
+    start_date = models.DateField(
+        help_text="First run on or after this date.",
+    )
+    end_date = models.DateField(null=True, blank=True)
+    end_after_occurrences = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Stop after this many sends (optional)."
+    )
+
+    # Execution state
+    next_run_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Next scheduled run (computed and updated after each send).",
+    )
+    last_run_at = models.DateTimeField(null=True, blank=True)
+    occurrence_count = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="recurring_notification_schedules",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "recurring_notification_schedules"
+        verbose_name = _("Recurring Notification Schedule")
+        verbose_name_plural = _("Recurring Notification Schedules")
+        ordering = ["next_run_at"]
+
+    def __str__(self):
+        return f"{self.name} ({self.get_frequency_display()})"
+
+    def save(self, *args, **kwargs):
+        """Set next_run_at when active and not yet set (first save)."""
+        if (
+            self.is_active
+            and self.next_run_at is None
+            and not self.last_run_at
+            and self.start_date
+            and self.time_of_day
+        ):
+            from notifications.recurrence import get_next_run_at
+
+            self.next_run_at = get_next_run_at(self)
+        super().save(*args, **kwargs)

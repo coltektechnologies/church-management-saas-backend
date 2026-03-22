@@ -90,8 +90,12 @@ def send_credentials_sms(
         if result.get("success"):
             logger.info(f"SMS sent successfully to {phone_number}")
         else:
+            err = result.get("error", "Unknown error")
             logger.error(
-                f"Failed to send SMS to {phone_number}: {result.get('error', 'Unknown error')}"
+                "Failed to send SMS to %s: %s (full result: %s)",
+                phone_number,
+                err,
+                result,
             )
 
         return result
@@ -143,14 +147,18 @@ def send_credentials(
         # Send SMS if requested and phone number exists
         if notification_preference in ["sms", "both"] and user.phone:
             try:
-                send_credentials_sms(
+                sms_result = send_credentials_sms(
                     user,
                     user.phone,
                     password,
                     user.email,
                     allow_initial_admin=allow_initial_admin,
                 )
-                results["sms_sent"] = True
+                results["sms_sent"] = sms_result.get("success", False)
+                if not results["sms_sent"]:
+                    results["sms_error"] = sms_result.get(
+                        "error", "SMS delivery failed"
+                    )
             except Exception as e:
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed to send SMS to {user.phone}: {str(e)}")

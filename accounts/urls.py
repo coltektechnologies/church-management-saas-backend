@@ -9,8 +9,8 @@ from .views import (ChangePasswordAPIView, ChurchDetailAPIView,
                     RolePermissionDetailAPIView, RolePermissionView, RoleView,
                     UserDetailAPIView, UserRoleDetailAPIView, UserRoleView,
                     UserView, registration_initialize_payment,
-                    registration_payment_callback, registration_step1,
-                    registration_step2, registration_step3,
+                    registration_payment_callback, registration_plans,
+                    registration_step1, registration_step2, registration_step3,
                     registration_verify_payment)
 
 app_name = "accounts"
@@ -25,6 +25,11 @@ urlpatterns = [
     # ==========================================
     # PAYMENT-FIRST REGISTRATION FLOW
     # ==========================================
+    path(
+        "registration/plans/",
+        registration_plans,
+        name="registration-plans",
+    ),
     path(
         "registration/step1/",
         registration_step1,

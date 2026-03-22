@@ -140,6 +140,25 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             else DepartmentSerializer
         )
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        department = serializer.instance
+        output_serializer = DepartmentSerializer(
+            department, context={"request": request}
+        )
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        # Allow partial updates for PUT when body doesn't include all required fields
+        partial = kwargs.get("partial", False)
+        if request.method == "PUT" and not partial:
+            data_keys = set(request.data.keys()) if request.data else set()
+            if "name" not in data_keys or "code" not in data_keys:
+                kwargs["partial"] = True
+        return super().update(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         # Head assignment is fully handled inside DepartmentWithHeadCreateSerializer.create()
         # using get_or_create — no duplicate logic needed here.

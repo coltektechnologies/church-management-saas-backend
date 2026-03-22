@@ -4,8 +4,8 @@ from .twilio_webhooks import TwilioWebhookView, twilio_status_webhook
 from .views import (BulkNotificationView, EmailViewSet,
                     NotificationBatchViewSet, NotificationPreferenceView,
                     NotificationTemplateViewSet, NotificationViewSet,
-                    SendEmailView, SendSMSView, SMSViewSet,
-                    TestNotificationView)
+                    RecurringNotificationScheduleViewSet, SendEmailView,
+                    SendSMSView, SMSViewSet, TestNotificationView)
 
 __all__ = [
     "NotificationViewSet",
@@ -17,6 +17,7 @@ __all__ = [
     "SendEmailView",
     "BulkNotificationView",
     "NotificationBatchViewSet",
+    "RecurringNotificationScheduleViewSet",
     "TestNotificationView",
     "TwilioWebhookView",
     "twilio_status_webhook",

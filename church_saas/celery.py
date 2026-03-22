@@ -23,6 +23,11 @@ app.conf.beat_schedule = {
         "task": "notifications.tasks.process_scheduled_notifications",
         "schedule": crontab(minute="*/5"),
     },
+    # Process recurring notification schedules every 5 minutes (daily/weekly/monthly/yearly)
+    "process-recurring-notification-schedules": {
+        "task": "notifications.tasks.process_recurring_notification_schedules",
+        "schedule": crontab(minute="*/5"),
+    },
     # Send service reminders every Saturday
     "send-service-reminders": {
         "task": "notifications.tasks.send_service_reminders",

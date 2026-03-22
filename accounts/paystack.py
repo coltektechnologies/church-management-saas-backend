@@ -62,15 +62,19 @@ class PaystackAPI:
             "Content-Type": "application/json",
         }
 
-        # Get frontend URL from settings or use default
-        frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+        # Get frontend URL from settings or use default (Paystack redirects user here after payment)
+        frontend_url = getattr(
+            settings,
+            "FRONTEND_URL",
+            "https://opendoor-git-dev-professors-projects-6e829388.vercel.app",
+        ).rstrip("/")
 
         payload = {
             "email": email,
             "amount": int(amount * 100),  # Convert to pesewas (cents)
             "reference": reference,
             "currency": "GHS",  # Ghana Cedis
-            "callback_url": f"{frontend_url}/api/auth/registration/payment-callback/?reference={reference}",
+            "callback_url": f"{frontend_url}/signup/success?reference={reference}",
         }
 
         if metadata:

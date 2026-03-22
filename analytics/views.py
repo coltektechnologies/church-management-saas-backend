@@ -206,6 +206,38 @@ class AnalyticsAnnouncementsStatsView(APIView):
         return Response(data)
 
 
+class AnalyticsTitheOfferingStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Tithe and offerings: monthly trend, this month totals and weekly breakdown.",
+        manual_parameters=[
+            openapi.Parameter(
+                "period_months",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                default=9,
+                description="Number of months for trend (default 9)",
+            ),
+        ],
+        tags=["Analytics"],
+    )
+    def get(self, request):
+        church = _church_from_request(request)
+        if not church:
+            return Response(
+                {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            period_months = int(request.query_params.get("period_months") or 9)
+        except (ValueError, TypeError):
+            period_months = 9
+        data = DashboardService(church).tithe_offering_stats(
+            period_months=period_months
+        )
+        return Response(data)
+
+
 class AnalyticsDepartmentsPerformanceView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -220,4 +252,62 @@ class AnalyticsDepartmentsPerformanceView(APIView):
                 {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
             )
         data = DashboardService(church).departments_performance()
+        return Response(data)
+
+
+class AnalyticsMemberContributionsView(APIView):
+    """Member contributions aggregated from income transactions for treasury dashboard."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Members who have contributed (income transactions with member FK), with totals and recent contributions.",
+        manual_parameters=[
+            openapi.Parameter(
+                "limit", openapi.IN_QUERY, type=openapi.TYPE_INTEGER, default=20
+            ),
+            openapi.Parameter(
+                "date_from", openapi.IN_QUERY, type=openapi.TYPE_STRING, format="date"
+            ),
+            openapi.Parameter(
+                "date_to", openapi.IN_QUERY, type=openapi.TYPE_STRING, format="date"
+            ),
+        ],
+        tags=["Analytics"],
+    )
+    def get(self, request):
+        church = _church_from_request(request)
+        if not church:
+            return Response(
+                {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            limit = int(request.query_params.get("limit") or 20)
+            limit = min(max(limit, 1), 100)
+        except (ValueError, TypeError):
+            limit = 20
+        date_from = _parse_date(request.query_params.get("date_from") or "")
+        date_to = _parse_date(request.query_params.get("date_to") or "")
+        data = DashboardService(church).member_contributions(
+            limit=limit, date_from=date_from, date_to=date_to
+        )
+        return Response(data)
+
+
+class AnalyticsDepartmentBudgetsView(APIView):
+    """Per-department budget allocated vs utilized for treasury dashboard."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Department budgets: allocated (program expense budgets) vs utilized (expense transactions) per department.",
+        tags=["Analytics"],
+    )
+    def get(self, request):
+        church = _church_from_request(request)
+        if not church:
+            return Response(
+                {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        data = DashboardService(church).department_budgets()
         return Response(data)

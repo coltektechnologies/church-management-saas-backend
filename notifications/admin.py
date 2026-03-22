@@ -14,11 +14,17 @@ from notifications.services.mnotify_service import MNotifyService
 
 from .models import (EmailLog, Notification, NotificationBatch,
                      NotificationPreference, NotificationTemplate,
-                     SMSDeliveryReport, SMSLog)
+                     RecurringNotificationSchedule, SMSDeliveryReport, SMSLog)
+
+# =============================================================================
+# In-app notifications
+# =============================================================================
 
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
+    """In-app notifications sent to users or members."""
+
     change_form_template = "admin/notifications/notification/change_form.html"
     list_display = (
         "title",
@@ -30,6 +36,8 @@ class NotificationAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("church", "is_read", "category", "priority", "status", "created_at")
+    list_per_page = 25
+    ordering = ["-created_at"]
 
     def change_view(self, request, object_id, form_url="", extra_context=None):
         extra_context = extra_context or {}
@@ -68,12 +76,13 @@ class NotificationAdmin(admin.ModelAdmin):
     list_select_related = ("user", "member")
     raw_id_fields = ("user", "member")
     fieldsets = (
-        (None, {"fields": ("church", "title", "message", "is_read", "read_at")}),
+        ("Content", {"fields": ("church", "title", "message")}),
         ("Recipient", {"fields": ("user", "member")}),
+        ("Status", {"fields": ("is_read", "read_at", "status")}),
         (
             "Metadata",
             {
-                "fields": ("category", "priority", "status", "link", "icon"),
+                "fields": ("category", "priority", "link", "icon"),
                 "classes": ("collapse",),
             },
         ),
@@ -96,71 +105,92 @@ class NotificationAdmin(admin.ModelAdmin):
     get_recipient.short_description = "Recipient"
 
 
+# =============================================================================
+# Templates & preferences
+# =============================================================================
+
+
 @admin.register(NotificationTemplate)
 class NotificationTemplateAdmin(admin.ModelAdmin):
+    """Reusable message templates for SMS, email, and in-app notifications."""
+
     list_display = (
         "name",
         "template_type",
         "category",
+        "church",
         "is_active",
         "is_system_template",
+        "created_at",
     )
     list_filter = (
         "template_type",
         "category",
         "is_active",
         "is_system_template",
+        "church",
         "created_at",
     )
     search_fields = ("name", "subject", "message")
     list_editable = ("is_active",)
+    list_per_page = 25
+    ordering = ["category", "name"]
     readonly_fields = ("created_at", "updated_at", "get_variables_help_text")
+    raw_id_fields = ("church",)
     fieldsets = (
-        (None, {"fields": ("name", "church", "is_active", "is_system_template")}),
-        ("Content", {"fields": ("template_type", "category", "subject", "message")}),
+        ("Identity", {"fields": ("name", "church", "is_active", "is_system_template")}),
         (
-            "Advanced",
+            "Type & content",
+            {"fields": ("template_type", "category", "subject", "message")},
+        ),
+        (
+            "Template variables",
             {
-                "fields": ("get_variables_help_text", "created_at", "updated_at"),
+                "fields": ("get_variables_help_text",),
+                "description": "Use these placeholders in subject and message.",
                 "classes": ("collapse",),
             },
+        ),
+        (
+            "Timestamps",
+            {"fields": ("created_at", "updated_at"), "classes": ("collapse",)},
         ),
     )
 
     def get_variables_help_text(self, obj):
-        return """
-        <p>Available variables:</p>
-        <ul>
-            <li><code>{name}</code> - Recipient's name</li>
-            <li><code>{date}</code> - Current date</li>
-            <li><code>{time}</code> - Current time</li>
-            <li><code>{church}</code> - Church name</li>
-        </ul>
-        """
+        return format_html(
+            "<p>Available variables:</p>"
+            "<ul><li><code>{name}</code> – Recipient's name</li>"
+            "<li><code>{date}</code> – Current date</li>"
+            "<li><code>{time}</code> – Current time</li>"
+            "<li><code>{church}</code> – Church name</li></ul>"
+        )
 
-    get_variables_help_text.short_description = "Template Variables"
-    get_variables_help_text.allow_tags = True
+    get_variables_help_text.short_description = "Template variables"
 
 
 @admin.register(NotificationPreference)
 class NotificationPreferenceAdmin(admin.ModelAdmin):
+    """Per-user notification channel and digest preferences."""
+
     list_display = (
         "user",
         "enable_email",
         "enable_sms",
         "enable_in_app",
         "digest_mode",
+        "digest_frequency",
     )
     search_fields = ("user__email", "user__username")
     list_filter = ("enable_email", "enable_sms", "enable_in_app", "digest_mode")
+    list_per_page = 25
+    ordering = ["user__email"]
+    raw_id_fields = ("user",)
     fieldsets = (
-        (None, {"fields": ("user",)}),
+        ("User", {"fields": ("user",)}),
+        ("Channels", {"fields": ("enable_email", "enable_sms", "enable_in_app")}),
         (
-            "Notification Channels",
-            {"fields": ("enable_email", "enable_sms", "enable_in_app")},
-        ),
-        (
-            "Notification Types",
+            "Types",
             {
                 "fields": (
                     "announcements",
@@ -173,11 +203,11 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
             },
         ),
         (
-            "Digest Settings",
+            "Digest",
             {"fields": ("digest_mode", "digest_frequency"), "classes": ("collapse",)},
         ),
         (
-            "Quiet Hours",
+            "Quiet hours",
             {
                 "fields": (
                     "quiet_hours_enabled",
@@ -190,11 +220,19 @@ class NotificationPreferenceAdmin(admin.ModelAdmin):
     )
 
 
+# =============================================================================
+# SMS (Quick Messages)
+# =============================================================================
+
+
 @admin.register(SMSLog)
 class SMSLogAdmin(admin.ModelAdmin):
+    """SMS / quick message logs and delivery status."""
+
     list_display = (
         "phone_number",
         "get_recipient_name",
+        "church",
         "status",
         "delivery_status",
         "get_gateway_display",
@@ -202,6 +240,8 @@ class SMSLogAdmin(admin.ModelAdmin):
         "sent_at",
         "get_cost_display",
     )
+    list_per_page = 25
+    ordering = ["-created_at"]
 
     def get_urls(self):
         urls = super().get_urls()
@@ -248,17 +288,7 @@ class SMSLogAdmin(admin.ModelAdmin):
             context,
         )
 
-    # Change the displayed name in admin
-    class Meta:
-        app_label = "Quick Messages"
-
-    # Override the app label
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.model._meta.verbose_name = "Quick Message"
-        self.model._meta.verbose_name_plural = "Quick Messages"
-
-    list_filter = ("status", "delivery_status", "gateway", "created_at", "church")
+    list_filter = ("church", "status", "delivery_status", "gateway", "created_at")
     search_fields = (
         "phone_number",
         "message",
@@ -366,18 +396,27 @@ class SMSLogAdmin(admin.ModelAdmin):
     get_recipient_name.admin_order_field = "member__first_name"
 
     def get_recipient_info(self, obj):
-        info = f"<strong>Phone:</strong> {obj.phone_number}<br>"
+        info = format_html("<strong>Phone:</strong> {}<br>", obj.phone_number)
         if obj.member:
-            info += f"<strong>Member:</strong> {obj.member.get_full_name() or 'Unnamed Member'}<br>"
-            if obj.member.email:
-                info += f"<strong>Email:</strong> {obj.member.email}<br>"
-        return format_html(info)
+            info += format_html(
+                "<strong>Member:</strong> {}<br>",
+                obj.member.get_full_name() or "Unnamed Member",
+            )
+            try:
+                loc = getattr(obj.member, "location", None)
+                email = getattr(loc, "email", None) if loc else None
+                if email:
+                    info += format_html("<strong>Email:</strong> {}<br>", email)
+            except Exception:
+                pass
+        return info
 
     get_recipient_info.short_description = "Recipient Information"
-    get_recipient_info.allow_tags = True
 
     def get_message_preview(self, obj):
-        preview = obj.message[:200] + ("..." if len(obj.message) > 200 else "")
+        preview = (obj.message or "")[:200] + (
+            "..." if len(obj.message or "") > 200 else ""
+        )
         return format_html(
             f'<div style="max-height: 150px; overflow-y: auto; padding: 5px; border: 1px solid #ddd;">{preview}</div>'
         )
@@ -454,18 +493,28 @@ class SMSLogAdmin(admin.ModelAdmin):
         js = ("admin/js/sms-log.js",)
 
 
+# =============================================================================
+# Email
+# =============================================================================
+
+
 @admin.register(EmailLog)
 class EmailLogAdmin(admin.ModelAdmin):
+    """Email delivery logs and tracking."""
+
     list_display = (
         "email_address",
         "get_subject",
+        "church",
         "status",
         "opened_count",
         "created_at",
         "send_now_button",
     )
-    list_filter = ("status", "gateway", "has_attachments", "created_at")
+    list_filter = ("church", "status", "gateway", "has_attachments", "created_at")
     search_fields = ("email_address", "subject", "gateway_message_id")
+    list_per_page = 25
+    ordering = ["-created_at"]
     readonly_fields = (
         "created_at",
         "updated_at",
@@ -517,7 +566,7 @@ class EmailLogAdmin(admin.ModelAdmin):
 
     date_hierarchy = "created_at"
     list_select_related = ("member", "church")
-    raw_id_fields = ("member",)
+    raw_id_fields = ("church", "member")
     actions = ["send_selected_emails"]
     fieldsets = (
         (
@@ -593,7 +642,6 @@ class EmailLogAdmin(admin.ModelAdmin):
         return "Already sent"
 
     send_now_button.short_description = "Actions"
-    send_now_button.allow_tags = True
 
     def get_urls(self):
         urls = super().get_urls()
@@ -739,18 +787,34 @@ class CustomAdminSite(admin.AdminSite):
         )
 
 
-# Register NotificationBatch with the default admin site
+# =============================================================================
+# Bulk & recurring
+# =============================================================================
+
+
 @admin.register(NotificationBatch)
 class NotificationBatchAdmin(admin.ModelAdmin):
+    """Bulk notification jobs (one-off or scheduled) to members/departments."""
+
     list_display = (
         "name",
+        "church",
         "status",
         "get_channels",
         "total_recipients",
+        "successful_count",
+        "failed_count",
         "created_at",
         "completed_at",
     )
-    list_filter = ("status", "send_sms", "send_email", "send_in_app", "created_at")
+    list_filter = (
+        "church",
+        "status",
+        "send_sms",
+        "send_email",
+        "send_in_app",
+        "created_at",
+    )
     search_fields = ("name", "description", "message")
     readonly_fields = (
         "created_at",
@@ -763,7 +827,7 @@ class NotificationBatchAdmin(admin.ModelAdmin):
         "get_processing_time",
     )
     date_hierarchy = "created_at"
-    raw_id_fields = ("created_by", "template")
+    raw_id_fields = ("church", "created_by", "template")
 
     def get_urls(self):
         urls = super().get_urls()
@@ -790,10 +854,8 @@ class NotificationBatchAdmin(admin.ModelAdmin):
                 "has_view_permission": self.has_view_permission(request),
             }
         )
-
         mnotify = MNotifyService()
         balance = mnotify.check_balance()
-
         if balance["success"]:
             context["balance"] = balance
             context["has_balance"] = True
@@ -803,17 +865,11 @@ class NotificationBatchAdmin(admin.ModelAdmin):
                 f"Failed to check SMS balance: {balance.get('error', 'Unknown error')}",
             )
             context["has_balance"] = False
-
         return TemplateResponse(
             request,
             "admin/notifications/sms_balance.html",
             context,
         )
-
-    def changelist_view(self, request, extra_context=None):
-        extra_context = extra_context or {}
-        extra_context["show_sms_balance"] = True
-        return super().changelist_view(request, extra_context=extra_context)
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -829,22 +885,27 @@ class NotificationBatchAdmin(admin.ModelAdmin):
             channels.append("Email")
         if obj.send_in_app:
             channels.append("In-App")
-        return ", ".join(channels) if channels else "None"
+        return ", ".join(channels) if channels else "—"
 
     get_channels.short_description = "Channels"
 
     def get_processing_time(self, obj):
         if obj.started_at and obj.completed_at:
             return obj.completed_at - obj.started_at
-        return "N/A"
+        return "—"
 
-    get_processing_time.short_description = "Processing Time"
+    get_processing_time.short_description = "Processing time"
 
+    list_per_page = 25
+    ordering = ["-created_at"]
     fieldsets = (
-        (None, {"fields": ("church", "name", "description", "status", "created_by")}),
+        (
+            "Overview",
+            {"fields": ("church", "name", "description", "status", "created_by")},
+        ),
         ("Content", {"fields": ("template", "message")}),
         (
-            "Recipients",
+            "Audience",
             {
                 "fields": (
                     "target_all_members",
@@ -884,29 +945,106 @@ class NotificationBatchAdmin(admin.ModelAdmin):
         ),
     )
 
-    def get_channels(self, obj):
-        channels = []
-        if obj.send_sms:
-            channels.append("SMS")
-        if obj.send_email:
-            channels.append("Email")
-        if obj.send_in_app:
-            channels.append("In-App")
-        return ", ".join(channels) if channels else "None"
 
-    get_channels.short_description = "Channels"
+@admin.register(RecurringNotificationSchedule)
+class RecurringNotificationScheduleAdmin(admin.ModelAdmin):
+    """Recurring notification schedules (daily, weekly, monthly, yearly)."""
 
-    def get_processing_time(self, obj):
-        if obj.started_at and obj.completed_at:
-            return obj.completed_at - obj.started_at
-        return "N/A"
+    list_display = (
+        "name",
+        "church",
+        "frequency",
+        "interval",
+        "time_of_day",
+        "next_run_at",
+        "last_run_at",
+        "occurrence_count",
+        "is_active",
+        "created_at",
+    )
+    list_filter = ("is_active", "frequency", "church")
+    search_fields = ("name", "description", "message")
+    list_per_page = 25
+    ordering = ["next_run_at"]
+    readonly_fields = (
+        "next_run_at",
+        "last_run_at",
+        "occurrence_count",
+        "created_at",
+        "updated_at",
+    )
+    raw_id_fields = ("church", "template", "created_by")
+    date_hierarchy = "start_date"
+    fieldsets = (
+        (
+            "Identity",
+            {"fields": ("church", "name", "description", "is_active", "created_by")},
+        ),
+        ("Content", {"fields": ("template", "message")}),
+        (
+            "Audience",
+            {
+                "fields": (
+                    "target_all_members",
+                    "target_departments",
+                    "target_members",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Channels",
+            {
+                "fields": ("send_sms", "send_email", "send_in_app"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Recurrence",
+            {
+                "fields": (
+                    "frequency",
+                    "interval",
+                    "time_of_day",
+                    "weekdays",
+                    "month_day",
+                    "year_month",
+                    "year_month_day",
+                ),
+                "description": "Weekly: set weekdays (0=Mon … 6=Sun). Monthly: set month_day. Yearly: set year_month and year_month_day.",
+            },
+        ),
+        (
+            "Schedule window",
+            {
+                "fields": ("start_date", "end_date", "end_after_occurrences"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Run status",
+            {
+                "fields": (
+                    "next_run_at",
+                    "last_run_at",
+                    "occurrence_count",
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+    )
 
-    get_processing_time.short_description = "Processing Time"
+
+# =============================================================================
+# Reports
+# =============================================================================
 
 
 @admin.register(SMSDeliveryReport)
 class SMSDeliveryReportAdmin(admin.ModelAdmin):
-    """Admin interface for SMS delivery reports"""
+    """SMS delivery reports and retry status."""
 
     list_display = (
         "get_message_id",
@@ -918,9 +1056,11 @@ class SMSDeliveryReportAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_filter = ("status", "delivery_timestamp", "created_at")
+    list_per_page = 25
+    ordering = ["-created_at"]
     search_fields = (
         "sms_log__gateway_message_id",
-        "sms_log__recipient",
+        "sms_log__phone_number",
         "status_message",
         "status_code",
     )
@@ -989,34 +1129,34 @@ class SMSDeliveryReportAdmin(admin.ModelAdmin):
     def get_recipient_info(self, obj):
         if not obj.sms_log:
             return "N/A"
-
-        info = f"""
-        <div style="margin-left: 10px;">
-            <p><strong>Recipient:</strong> {obj.sms_log.phone_number}</p>
-            <p><strong>Message ID:</strong> {obj.sms_log.gateway_message_id}</p>
-            <p><strong>Status:</strong> {obj.sms_log.get_status_display()}</p>
-            <p><strong>Sent at:</strong> {obj.sms_log.sent_at or 'N/A'}</p>
-        </div>
-        """
-        return format_html(info)
+        s = obj.sms_log
+        return format_html(
+            '<div style="margin-left: 10px;">'
+            "<p><strong>Recipient:</strong> {}</p>"
+            "<p><strong>Message ID:</strong> {}</p>"
+            "<p><strong>Status:</strong> {}</p>"
+            "<p><strong>Sent at:</strong> {}</p></div>",
+            s.phone_number,
+            s.gateway_message_id or "—",
+            s.get_status_display(),
+            s.sent_at or "N/A",
+        )
 
     get_recipient_info.short_description = "Recipient Information"
-    get_recipient_info.allow_tags = True
 
     def get_message_preview(self, obj):
         if not obj.sms_log or not obj.sms_log.message:
             return "N/A"
-
-        preview = obj.sms_log.message[:200]
-        if len(obj.sms_log.message) > 200:
-            preview += "..."
-        return format_html(f'<div style="white-space: pre-wrap;">{preview}</div>')
+        preview = obj.sms_log.message[:200] + (
+            "..." if len(obj.sms_log.message) > 200 else ""
+        )
+        return format_html('<div style="white-space: pre-wrap;">{}</div>', preview)
 
     get_message_preview.short_description = "Message Preview"
 
     def retry_failed_reports(self, request, queryset):
         """Action to retry failed delivery reports"""
-        from ..tasks import retry_failed_sms
+        from notifications.tasks import retry_failed_sms
 
         failed_reports = queryset.filter(status="failed")
         count = failed_reports.count()
