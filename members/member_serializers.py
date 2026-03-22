@@ -1,3 +1,5 @@
+import re
+
 from django.contrib.auth.hashers import make_password
 from django.utils.crypto import get_random_string
 from rest_framework import serializers
@@ -5,6 +7,26 @@ from rest_framework import serializers
 from accounts.models import Role, User, UserRole
 from departments.models import Department, MemberDepartment
 from members.models import Member, MemberLocation
+
+
+def generate_username_from_member(member):
+    """Auto-generate a unique username from member first/last name (e.g. kwame.mensah)."""
+    first = (member.first_name or "").strip().lower()
+    last = (member.last_name or "").strip().lower()
+    # Sanitize: only letters, digits, dots, underscores
+    first = re.sub(r"[^a-z0-9.]", "", first)
+    last = re.sub(r"[^a-z0-9.]", "", last)
+    base = f"{first}.{last}" if first and last else (first or last or "user")
+    base = base[:148]  # leave room for _99
+    username = base
+    n = 1
+    while User.objects.filter(username=username).exists():
+        username = f"{base}_{n}"
+        n += 1
+        if n > 999:
+            username = f"{base}_{get_random_string(6).lower()}"
+            break
+    return username
 
 
 class EmergencyContactSerializer(serializers.Serializer):
@@ -100,6 +122,19 @@ class MemberCreateSerializer(serializers.ModelSerializer):
 
     # System Access
     has_system_access = serializers.BooleanField(default=False, required=False)
+    system_access_username = serializers.CharField(
+        max_length=150,
+        required=False,
+        allow_blank=True,
+        help_text="Login username. Auto-generated from member name (e.g. firstname.lastname) if not provided.",
+    )
+    system_access_password = serializers.CharField(
+        max_length=128,
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        help_text="Login password. If not provided, a random password is generated.",
+    )
 
     # Notification Options
     send_credentials_via_email = serializers.BooleanField(
@@ -140,6 +175,8 @@ class MemberCreateSerializer(serializers.ModelSerializer):
             # Admin Notes & System Access
             "admin_notes",
             "has_system_access",
+            "system_access_username",
+            "system_access_password",
             # Notification Preferences
             "send_credentials_via_email",
             "send_credentials_via_sms",
@@ -245,18 +282,34 @@ class MemberCreateSerializer(serializers.ModelSerializer):
         if (has_system_access or send_email or send_sms) and validated_data.get(
             "email"
         ):
-            self._create_system_user(member, validated_data["email"], church)
+            raw_username = (validated_data.get("system_access_username") or "").strip()
+            username = (
+                raw_username if raw_username else generate_username_from_member(member)
+            )
+            password = validated_data.get("system_access_password", "").strip()
+            self._create_system_user(
+                member,
+                validated_data["email"],
+                church,
+                username=username,
+                password=password,
+            )
 
         return member
 
-    def _create_system_user(self, member, email, church):
-        # Generate a random password
-        password = get_random_string(12)
+    def _create_system_user(self, member, email, church, username=None, password=None):
+        # Use provided username or email; generate password if not provided
+        username = (username or email).strip()
+        password = password or get_random_string(12)
+
+        # Store for response (so view can return username/password to client)
+        self.generated_username = username
+        self.generated_password = password
 
         # Create the user
         user = User.objects.create(
             email=email,
-            username=email,  # Use email as username
+            username=username,
             first_name=member.first_name,
             last_name=member.last_name,
             church=church,
@@ -268,9 +321,9 @@ class MemberCreateSerializer(serializers.ModelSerializer):
         user.set_password(password)
         user.save()
 
-        # Assign default member role (assuming you have a role with level 4 for regular members)
+        # Assign default member role (level 4 = Member). Role is global; UserRole links to church.
         try:
-            member_role = Role.objects.get(level=4, church=church)
+            member_role = Role.objects.get(level=4)
             UserRole.objects.create(user=user, role=member_role, church=church)
         except Role.DoesNotExist:
             # Handle case where member role doesn't exist
@@ -294,7 +347,7 @@ class MemberCreateSerializer(serializers.ModelSerializer):
                 f"Your account has been created with the following credentials:\n"
                 f"Email: {email}\n"
                 f"Password: {password}\n\n"
-                f"Please log in at {settings.FRONTEND_URL}/login and change your password.\n\n"
+                f"Please log in at {settings.FRONTEND_LOGIN_URL} and change your password.\n\n"
                 "Best regards,\nThe Church Team"
             )
 

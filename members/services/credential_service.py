@@ -90,8 +90,12 @@ def send_credentials_sms(
         if result.get("success"):
             logger.info(f"SMS sent successfully to {phone_number}")
         else:
+            err = result.get("error", "Unknown error")
             logger.error(
-                f"Failed to send SMS to {phone_number}: {result.get('error', 'Unknown error')}"
+                "Failed to send SMS to %s: %s (full result: %s)",
+                phone_number,
+                err,
+                result,
             )
 
         return result

@@ -7,8 +7,8 @@ from accounts.models.base_models import AuditLog
 from members.models import Member
 from members.serializers import MemberSerializer
 
-from .models import (Department, DepartmentHead, MemberDepartment, Program,
-                     ProgramBudgetItem)
+from .models import (Department, DepartmentActivity, DepartmentHead,
+                     MemberDepartment, Program, ProgramBudgetItem)
 
 # ==========================================
 # DEPARTMENT SERIALIZERS
@@ -809,3 +809,60 @@ class DepartmentStatisticsSerializer(serializers.Serializer):
     # Per-department stats fields (used by department_statistics action)
     total_members = serializers.IntegerField(default=0, required=False)
     current_program = serializers.DictField(required=False, allow_null=True)
+
+
+# ==========================================
+# DEPARTMENT ACTIVITY (EVENT) SERIALIZERS
+# ==========================================
+
+
+class DepartmentActivitySerializer(serializers.ModelSerializer):
+    """Department activity/event with optional time and is_upcoming flag."""
+
+    department_name = serializers.CharField(source="department.name", read_only=True)
+    is_upcoming = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DepartmentActivity
+        fields = [
+            "id",
+            "department",
+            "department_name",
+            "church",
+            "title",
+            "description",
+            "status",
+            "start_date",
+            "end_date",
+            "start_time",
+            "end_time",
+            "location",
+            "expected_attendance",
+            "actual_attendance",
+            "budget_allocated",
+            "budget_spent",
+            "notes",
+            "is_upcoming",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "church", "created_by", "created_at", "updated_at"]
+
+    def get_is_upcoming(self, obj):
+        now = timezone.now()
+        if obj.end_date < now.date():
+            return False
+        if obj.start_date > now.date():
+            return True
+        if obj.end_time and now.time() > obj.end_time:
+            return False
+        return True
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        if not request or not request.user:
+            raise serializers.ValidationError("Request context required")
+        validated_data["church"] = request.user.church
+        validated_data["created_by"] = request.user
+        return super().create(validated_data)

@@ -4,6 +4,7 @@ from rest_framework_nested.routers import NestedDefaultRouter
 
 from .api_views import get_departments_by_church, get_members_by_church
 # Import views directly from their modules to avoid circular imports
+from .views.activity_views import DepartmentActivityViewSet
 from .views.department_views import DepartmentViewSet, MemberDepartmentViewSet
 from .views.program_step_views import DepartmentListForProgramAPIView
 from .views.program_views import ProgramBudgetItemViewSet, ProgramViewSet
@@ -17,9 +18,12 @@ router.register(
     r"member-departments", MemberDepartmentViewSet, basename="member-department"
 )
 
-# Nested router for programs under departments
+# Nested router for programs and activities under departments
 program_router = NestedDefaultRouter(router, r"departments", lookup="department")
 program_router.register(r"programs", ProgramViewSet, basename="department-programs")
+program_router.register(
+    r"activities", DepartmentActivityViewSet, basename="department-activities"
+)
 
 # Nested router for budget items under programs
 budget_item_router = NestedDefaultRouter(program_router, r"programs", lookup="program")
@@ -114,6 +118,14 @@ urlpatterns = [
 
 
 # URL Patterns Documentation:
+#
+# Department Activities (events): title, date, time, location, description; upcoming/past by time
+# GET    /api/departments/{id}/activities/?time_filter=upcoming|past - List activities
+# POST   /api/departments/{id}/activities/ - Create (optional: notify_to, member_ids, send_email, send_sms)
+# GET    /api/departments/{id}/activities/{activity_id}/ - Retrieve
+# PUT    /api/departments/{id}/activities/{activity_id}/ - Update
+# PATCH  /api/departments/{id}/activities/{activity_id}/ - Partial update
+# DELETE /api/departments/{id}/activities/{activity_id}/ - Soft delete
 #
 # Department Head Form Endpoints (NO AUTH REQUIRED):
 # GET    /departments/api/departments/by-church/?church_id=<uuid> - Get departments by church ID

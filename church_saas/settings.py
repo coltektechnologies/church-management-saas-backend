@@ -193,9 +193,14 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
+FRONTEND_BASE_URL = os.getenv(
+    "FRONTEND_BASE_URL",
+    "https://opendoor-git-dev-professors-projects-6e829388.vercel.app",
+)
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8080",
+    FRONTEND_BASE_URL,
 ]
 
 # Cache Configuration
@@ -368,8 +373,12 @@ LOGGING = {
     },
 }
 
-# Frontend URL Configuration
-FRONTEND_LOGIN_URL = os.getenv("FRONTEND_LOGIN_URL", "http://localhost:3000/login")
+# Frontend URL Configuration (used in notification emails/SMS - do not set to localhost in production)
+_DEFAULT_FRONTEND_LOGIN_URL = (
+    "https://opendoor-git-dev-professors-projects-6e829388.vercel.app/login"
+)
+FRONTEND_LOGIN_URL = os.getenv("FRONTEND_LOGIN_URL", _DEFAULT_FRONTEND_LOGIN_URL)
+FRONTEND_URL = os.getenv("FRONTEND_URL", FRONTEND_BASE_URL)
 
 # Email Configuration
 EMAIL_BACKEND = os.getenv(

@@ -5,9 +5,9 @@ from rest_framework.routers import DefaultRouter
 from .views import (BulkNotificationView, EmailViewSet,
                     NotificationBatchViewSet, NotificationPreferenceView,
                     NotificationTemplateViewSet, NotificationViewSet,
-                    SendEmailView, SendSMSView, SMSViewSet,
-                    TestNotificationView, TwilioWebhookView,
-                    twilio_status_webhook)
+                    RecurringNotificationScheduleViewSet, SendEmailView,
+                    SendSMSView, SMSViewSet, TestNotificationView,
+                    TwilioWebhookView, twilio_status_webhook)
 
 app_name = "notifications"
 
@@ -17,6 +17,11 @@ router.register(r"templates", NotificationTemplateViewSet, basename="template")
 router.register(r"sms-logs", SMSViewSet, basename="sms-log")
 router.register(r"email-logs", EmailViewSet, basename="email-log")
 router.register(r"batches", NotificationBatchViewSet, basename="batch")
+router.register(
+    r"recurring-schedules",
+    RecurringNotificationScheduleViewSet,
+    basename="recurring-schedule",
+)
 
 urlpatterns = [
     # Router endpoints

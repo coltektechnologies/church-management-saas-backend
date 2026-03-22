@@ -64,7 +64,9 @@ class PaystackAPI:
 
         # Get frontend URL from settings or use default (Paystack redirects user here after payment)
         frontend_url = getattr(
-            settings, "FRONTEND_URL", "http://localhost:3000"
+            settings,
+            "FRONTEND_URL",
+            "https://opendoor-git-dev-professors-projects-6e829388.vercel.app",
         ).rstrip("/")
 
         payload = {

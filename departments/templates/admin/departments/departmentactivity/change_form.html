@@ -1,0 +1,13 @@
+{% extends "admin/change_form.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+  {% if send_notification_url %}
+  <div class="module" style="margin-bottom: 20px; padding: 15px; background: #f0f4ff; border: 1px solid #c5d3ff; border-radius: 4px;">
+    <h3 style="margin-top: 0;">Notifications</h3>
+    <p style="margin-bottom: 10px; color: #555;">Send email and/or SMS about this activity to department members, all church members, or specific members.</p>
+    <a href="{{ send_notification_url }}" class="button" style="background: #4177f6; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">Send notification</a>
+  </div>
+  {% endif %}
+  {{ block.super }}
+{% endblock %}

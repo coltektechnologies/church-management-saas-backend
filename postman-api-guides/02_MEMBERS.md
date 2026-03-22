@@ -34,7 +34,7 @@ Member management, visitors, and convert-to-member.
 
 ### Create Member
 
-**Endpoint:** `POST {{base_url}}/api/members/members/create/`
+**Endpoint:** `POST {{base_url}}/api/members/create/`
 
 **Headers:**
 ```

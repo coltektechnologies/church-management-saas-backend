@@ -13,8 +13,8 @@ urlpatterns = [
     # ==========================================
     # MEMBER ENDPOINTS
     # ==========================================
+    path("create/", MemberCreateView.as_view(), name="member-create"),
     path("members/", MemberView.as_view(), name="member-list"),
-    path("members/create/", MemberCreateView.as_view(), name="member-create"),
     path("members/<uuid:pk>/", MemberDetailAPIView.as_view(), name="member-detail"),
     # ==========================================
     # VISITOR ENDPOINTS

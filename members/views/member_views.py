@@ -227,33 +227,49 @@ class MemberCreateView(APIView):
             ) and serializer.validated_data.get("email"):
                 response_data["system_access_created"] = True
                 response_data["email"] = serializer.validated_data["email"]
-
-                # Get the generated password from the serializer if it exists
+                # Include username and password (auto-generated if not provided)
+                response_data["username"] = (
+                    getattr(serializer, "generated_username", None)
+                    or serializer.validated_data["email"]
+                )
                 password = getattr(serializer, "generated_password", None)
+                if password:
+                    response_data["password"] = password
 
-                # Send credentials if requested
+                # Send credentials if requested (email/phone live on member.location)
                 if password:
                     try:
                         from members.services.credential_service import (
                             send_credentials_email, send_credentials_sms)
 
+                        member_email = getattr(
+                            getattr(member, "location", None), "email", None
+                        ) or serializer.validated_data.get("email")
+                        member_phone = getattr(
+                            getattr(member, "location", None), "phone_primary", None
+                        )
+
                         # Send email if requested and email exists
                         if (
                             serializer.validated_data.get("send_credentials_via_email")
-                            and member.email
+                            and member_email
                         ):
-                            send_credentials_email(member, member.email, password)
+                            send_credentials_email(member, member_email, password)
                             response_data["email_sent"] = True
 
                         # Send SMS if requested and phone number exists
                         if (
                             serializer.validated_data.get("send_credentials_via_sms")
-                            and member.phone_number
+                            and member_phone
                         ):
-                            send_credentials_sms(
-                                member, member.phone_number, password, member.email
+                            sms_result = send_credentials_sms(
+                                member, member_phone, password, member_email
                             )
-                            response_data["sms_sent"] = True
+                            response_data["sms_sent"] = sms_result.get("success", False)
+                            if not response_data["sms_sent"]:
+                                response_data["sms_error"] = sms_result.get(
+                                    "error", "SMS delivery failed"
+                                )
 
                     except Exception as e:
                         # Log the error but don't fail the request
@@ -284,6 +300,10 @@ class MemberView(APIView):
         )
         serializer = MemberSerializer(members, many=True, context={"request": request})
         return Response(serializer.data)
+
+    def post(self, request, format=None):
+        """Create a new member (same as POST /api/members/create/)."""
+        return MemberCreateView().post(request, format)
 
 
 class MemberDetailAPIView(APIView):

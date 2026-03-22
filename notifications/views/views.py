@@ -5,6 +5,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,13 +13,14 @@ from rest_framework.views import APIView
 from members.models import Member
 from notifications.models import (EmailLog, Notification, NotificationBatch,
                                   NotificationPreference, NotificationTemplate,
-                                  SMSLog)
+                                  RecurringNotificationSchedule, SMSLog)
 from notifications.serializers import (EmailLogSerializer,
                                        NotificationBatchSerializer,
                                        NotificationCreateSerializer,
                                        NotificationPreferenceSerializer,
                                        NotificationSerializer,
                                        NotificationTemplateSerializer,
+                                       RecurringNotificationScheduleSerializer,
                                        SendBulkNotificationSerializer,
                                        SendEmailSerializer, SendSMSSerializer,
                                        SMSLogSerializer)
@@ -555,6 +557,53 @@ class NotificationBatchViewSet(viewsets.ReadOnlyModelViewSet):
     @swagger_auto_schema(
         operation_description="Get notification batches",
         responses={200: NotificationBatchSerializer(many=True)},
+        tags=["Notifications"],
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
+
+# ==========================================
+# RECURRING NOTIFICATION SCHEDULES (GOOGLE MEET–STYLE)
+# ==========================================
+
+
+class RecurringNotificationScheduleViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for recurring notification schedules.
+    Frequency: daily, weekly (specific weekdays), monthly (day of month), yearly (date).
+    A Celery beat task runs every 5 minutes and sends when next_run_at <= now.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = RecurringNotificationScheduleSerializer
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ["is_active", "frequency"]
+    ordering = ["next_run_at"]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return RecurringNotificationSchedule.objects.none()
+        user = self.request.user
+        church = getattr(user, "church", None)
+        if not church:
+            return RecurringNotificationSchedule.objects.none()
+        if getattr(user, "is_platform_admin", False):
+            church_id = self.request.query_params.get("church_id")
+            if church_id:
+                return RecurringNotificationSchedule.objects.filter(church_id=church_id)
+            return RecurringNotificationSchedule.objects.all()
+        return RecurringNotificationSchedule.objects.filter(church=church)
+
+    def perform_create(self, serializer):
+        church = getattr(self.request.user, "church", None)
+        if not church:
+            raise ValidationError("User has no church.")
+        serializer.save(church=church, created_by=self.request.user)
+
+    @swagger_auto_schema(
+        operation_description="List recurring notification schedules",
+        responses={200: RecurringNotificationScheduleSerializer(many=True)},
         tags=["Notifications"],
     )
     def list(self, request, *args, **kwargs):

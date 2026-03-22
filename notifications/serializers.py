@@ -1,7 +1,8 @@
 from rest_framework import serializers
 
 from .models import (EmailLog, Notification, NotificationBatch,
-                     NotificationPreference, NotificationTemplate, SMSLog)
+                     NotificationPreference, NotificationTemplate,
+                     RecurringNotificationSchedule, SMSLog)
 
 # =====================================================
 # NOTIFICATION SERIALIZERS
@@ -272,6 +273,61 @@ class NotificationBatchSerializer(serializers.ModelSerializer):
         return NotificationBatch.objects.create(
             church=church, created_by=request.user, **validated_data
         )
+
+
+# =====================================================
+# RECURRING NOTIFICATION SCHEDULE (GOOGLE MEET–STYLE)
+# =====================================================
+
+
+class RecurringNotificationScheduleSerializer(serializers.ModelSerializer):
+    """Recurring schedule: daily, weekly (specific days), monthly, yearly."""
+
+    frequency_display = serializers.CharField(
+        source="get_frequency_display", read_only=True
+    )
+
+    class Meta:
+        model = RecurringNotificationSchedule
+        fields = [
+            "id",
+            "name",
+            "description",
+            "message",
+            "template",
+            "target_all_members",
+            "target_departments",
+            "target_members",
+            "send_sms",
+            "send_email",
+            "send_in_app",
+            "frequency",
+            "frequency_display",
+            "interval",
+            "time_of_day",
+            "weekdays",
+            "month_day",
+            "year_month",
+            "year_month_day",
+            "start_date",
+            "end_date",
+            "end_after_occurrences",
+            "next_run_at",
+            "last_run_at",
+            "occurrence_count",
+            "is_active",
+            "created_by",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "next_run_at",
+            "last_run_at",
+            "occurrence_count",
+            "created_at",
+            "updated_at",
+        ]
 
 
 # =====================================================

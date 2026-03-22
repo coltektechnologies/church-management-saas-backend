@@ -766,33 +766,17 @@ def submit_expense_request(request, pk):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Auto-approve if submitted by department head
-    from departments.models import DepartmentHead, Program
-    from members.models import Member, MemberLocation
+    # Auto-approve if submitted by department head or elder in charge
+    is_dept_head_or_elder = _can_approve_expense_as_dept_head_or_elder(
+        request, expense_request
+    )
 
-    is_dept_head = False
-    if expense_request.department:
-        try:
-            # Find member by matching user's email with member's email in MemberLocation
-            member_location = MemberLocation.objects.filter(
-                email__iexact=request.user.email, church=church
-            ).first()
-
-            if member_location:
-                is_dept_head = DepartmentHead.objects.filter(
-                    department=expense_request.department, member=member_location.member
-                ).exists()
-        except Exception as e:
-            # Log the error but don't fail the request
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error checking department head status: {str(e)}")
-
-    expense_request.status = "DEPT_HEAD_APPROVED" if is_dept_head else "SUBMITTED"
+    expense_request.status = (
+        "DEPT_HEAD_APPROVED" if is_dept_head_or_elder else "SUBMITTED"
+    )
     expense_request.requested_at = timezone.now()
 
-    if is_dept_head:
+    if is_dept_head_or_elder:
         expense_request.dept_head_approved_at = timezone.now()
         expense_request.dept_head_approved_by = request.user
 
@@ -810,9 +794,39 @@ def submit_expense_request(request, pk):
     return Response(serializer.data)
 
 
+def _can_approve_expense_as_dept_head_or_elder(request, expense_request):
+    """Check if user can approve: Department Head or Elder in charge of the department."""
+    from departments.models import DepartmentHead
+    from members.models import MemberLocation
+
+    dept = expense_request.department
+    if not dept:
+        return False
+    # Department Head: member whose email matches user, and is head of this dept
+    member_location = MemberLocation.objects.filter(
+        email__iexact=request.user.email, church=expense_request.church
+    ).first()
+    if (
+        member_location
+        and DepartmentHead.objects.filter(
+            department=dept, member=member_location.member
+        ).exists()
+    ):
+        return True
+    # Elder in charge: department's elder_in_charge has system_user_id matching request.user
+    elder = getattr(dept, "elder_in_charge", None)
+    if (
+        elder
+        and elder.system_user_id
+        and str(elder.system_user_id) == str(request.user.id)
+    ):
+        return True
+    return False
+
+
 @swagger_auto_schema(
     method="post",
-    operation_description="Approve expense request (Department Head)",
+    operation_description="Approve expense request (Department Head or Elder in charge)",
     request_body=ApproveExpenseRequestSerializer,
     responses={200: ExpenseRequestDetailSerializer()},
     tags=["Treasury - Expense Requests"],
@@ -820,9 +834,17 @@ def submit_expense_request(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def approve_expense_request_dept_head(request, pk):
-    """Approve expense request as Department Head"""
+    """Approve expense request as Department Head or Elder in charge"""
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
+
+    if not _can_approve_expense_as_dept_head_or_elder(request, expense_request):
+        return Response(
+            {
+                "error": "Only the Department Head or Elder in charge of this department can approve"
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     if expense_request.status != "SUBMITTED":
         return Response(
@@ -860,9 +882,33 @@ def approve_expense_request_dept_head(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+def _can_approve_expense_as_first_elder(request, expense_request):
+    """Check if user can approve: First Elder role OR Elder in charge of the department."""
+    from accounts.models import Role, UserRole
+
+    church = expense_request.church
+    dept = expense_request.department
+    user = request.user
+    # First Elder role (church-level)
+    first_elder_role = Role.objects.filter(name="First Elder").first()
+    if (
+        first_elder_role
+        and UserRole.objects.filter(
+            user=user, role=first_elder_role, church=church, is_active=True
+        ).exists()
+    ):
+        return True
+    # Elder in charge of this department
+    if dept:
+        elder = getattr(dept, "elder_in_charge", None)
+        if elder and elder.system_user_id and str(elder.system_user_id) == str(user.id):
+            return True
+    return False
+
+
 @swagger_auto_schema(
     method="post",
-    operation_description="Approve expense request (First Elder)",
+    operation_description="Approve expense request (First Elder or Elder in charge)",
     request_body=ApproveExpenseRequestSerializer,
     responses={200: ExpenseRequestDetailSerializer()},
     tags=["Treasury - Expense Requests"],
@@ -870,9 +916,17 @@ def approve_expense_request_dept_head(request, pk):
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def approve_expense_request_first_elder(request, pk):
-    """Approve expense request as First Elder"""
+    """Approve expense request as First Elder or Elder in charge"""
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
+
+    if not _can_approve_expense_as_first_elder(request, expense_request):
+        return Response(
+            {
+                "error": "Only First Elder or the Elder in charge of this department can approve"
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     if expense_request.status != "DEPT_HEAD_APPROVED":
         return Response(
