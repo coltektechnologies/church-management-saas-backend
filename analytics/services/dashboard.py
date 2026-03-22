@@ -16,8 +16,7 @@ from accounts.models import Church
 from announcements.models import Announcement
 from departments.models import Department, MemberDepartment, Program
 from members.models import Member
-from treasury.models import (Asset, ExpenseRequest, ExpenseTransaction,
-                             IncomeTransaction)
+from treasury.models import Asset, ExpenseRequest, ExpenseTransaction, IncomeTransaction
 
 # Cache TTL in seconds (5 min for near real-time dashboards)
 DASHBOARD_CACHE_TTL = 300
@@ -492,6 +491,132 @@ class DashboardService:
             }
 
         return self._get_cached("announcements_stats", _build)
+
+    # ---------- Analytics: Member contributions (for treasury dashboard) ----------
+    def member_contributions(
+        self,
+        limit: int = 20,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+    ) -> dict:
+        """
+        Aggregated income contributions by member for treasury dashboard.
+        Returns members who have contributed (via IncomeTransaction with member FK),
+        with total amount, last contribution date, and contribution history.
+        """
+        today = timezone.localdate()
+        date_from = date_from or (today - timedelta(days=365))
+        date_to = date_to or today
+
+        def _build():
+            from django.db.models import Max
+
+            base = IncomeTransaction.objects.filter(
+                church=self.church,
+                deleted_at__isnull=True,
+                transaction_date__gte=date_from,
+                transaction_date__lte=date_to,
+                member__isnull=False,
+            ).select_related("member", "category")
+
+            # Aggregate by member
+            agg = (
+                base.values("member_id")
+                .annotate(
+                    total=Sum("amount"),
+                    last_date=Max("transaction_date"),
+                    count=Count("id"),
+                )
+                .order_by("-total")[:limit]
+            )
+
+            result = []
+            for row in agg:
+                member = Member.objects.filter(
+                    id=row["member_id"], church=self.church, deleted_at__isnull=True
+                ).first()
+                if not member:
+                    continue
+
+                # Recent contributions for this member
+                contribs = (
+                    base.filter(member_id=row["member_id"])
+                    .order_by("-transaction_date")[:10]
+                    .values("transaction_date", "amount", "category__name")
+                )
+                contributions = [
+                    {
+                        "date": str(c["transaction_date"]),
+                        "amount": float(c["amount"]),
+                        "type": c["category__name"] or "Other",
+                    }
+                    for c in contribs
+                ]
+
+                result.append(
+                    {
+                        "id": str(member.id),
+                        "name": member.full_name or "Unknown",
+                        "avatar": getattr(member, "profile_photo", None) or "",
+                        "phone": member.phone_number or "",
+                        "status": member.membership_status or "ACTIVE",
+                        "total_amount": float(row["total"]),
+                        "last_date": str(row["last_date"]),
+                        "contributions": contributions,
+                    }
+                )
+            return {
+                "contributors": result,
+                "period": {"date_from": str(date_from), "date_to": str(date_to)},
+                "generated_at": timezone.now().isoformat(),
+            }
+
+        return self._get_cached(
+            "member_contributions",
+            _build,
+            limit=limit,
+            df=str(date_from),
+            dt=str(date_to),
+        )
+
+    # ---------- Analytics: Department budgets (for treasury dashboard) ----------
+    def department_budgets(self) -> dict:
+        """
+        Per-department budget allocated vs utilized for treasury dashboard.
+        allocated = sum of Program.total_expenses (expense budget) per department.
+        utilized = sum of ExpenseTransaction amounts per department.
+        """
+        from treasury.models import ExpenseTransaction
+
+        def _build():
+            depts = Department.objects.filter(
+                church=self.church, deleted_at__isnull=True, is_active=True
+            ).order_by("name")
+
+            result = []
+            for d in depts:
+                # Allocated: program expense budgets
+                allocated = Program.objects.filter(department=d).aggregate(
+                    s=Sum("total_expenses")
+                )["s"] or Decimal("0")
+                # Utilized: actual expense transactions for this department
+                utilized = ExpenseTransaction.objects.filter(
+                    department=d, church=self.church, deleted_at__isnull=True
+                ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+                result.append(
+                    {
+                        "id": str(d.id),
+                        "name": d.name,
+                        "allocated": float(allocated),
+                        "utilized": float(utilized),
+                    }
+                )
+            return {
+                "departments": result,
+                "generated_at": timezone.now().isoformat(),
+            }
+
+        return self._get_cached("department_budgets", _build)
 
     # ---------- Analytics: Departments performance ----------
     def departments_performance(self) -> dict:

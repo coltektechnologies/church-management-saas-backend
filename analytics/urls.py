@@ -1,11 +1,19 @@
 from django.urls import path
 
-from .views import (AnalyticsAnnouncementsStatsView,
-                    AnalyticsDepartmentsPerformanceView,
-                    AnalyticsFinanceKPIsView, AnalyticsFinanceTrendsView,
-                    AnalyticsMembersStatsView, AnalyticsTitheOfferingStatsView,
-                    DashboardAdminView, DashboardDepartmentView,
-                    DashboardSecretariatView, DashboardTreasuryView)
+from .views import (
+    AnalyticsAnnouncementsStatsView,
+    AnalyticsDepartmentBudgetsView,
+    AnalyticsDepartmentsPerformanceView,
+    AnalyticsFinanceKPIsView,
+    AnalyticsFinanceTrendsView,
+    AnalyticsMemberContributionsView,
+    AnalyticsMembersStatsView,
+    AnalyticsTitheOfferingStatsView,
+    DashboardAdminView,
+    DashboardDepartmentView,
+    DashboardSecretariatView,
+    DashboardTreasuryView,
+)
 
 app_name = "analytics"
 
@@ -47,5 +55,15 @@ urlpatterns = [
         "departments/performance/",
         AnalyticsDepartmentsPerformanceView.as_view(),
         name="departments-performance",
+    ),
+    path(
+        "finance/member-contributions/",
+        AnalyticsMemberContributionsView.as_view(),
+        name="member-contributions",
+    ),
+    path(
+        "finance/department-budgets/",
+        AnalyticsDepartmentBudgetsView.as_view(),
+        name="department-budgets",
     ),
 ]
