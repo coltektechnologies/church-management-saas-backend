@@ -81,21 +81,38 @@ class PaystackAPI:
             payload["metadata"] = metadata
 
         try:
-            response = requests.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            error_detail = str(e)
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
             try:
-                error_detail = response.text
-            except:
-                pass
-            logger.error(f"Paystack API Error: {error_detail}")
-            logger.error(
-                f"Response Status: {response.status_code if 'response' in locals() else 'No response'}"
-            )
-            logger.error(f"Secret Key being used: {cls.get_secret_key()[:10]}...")
-            return {"status": False, "message": error_detail}
+                body = response.json()
+            except ValueError:
+                logger.error("Paystack non-JSON response: %s", response.text[:500])
+                return {
+                    "status": False,
+                    "message": response.text or "Invalid response from Paystack",
+                }
+
+            if response.status_code >= 400:
+                msg = (
+                    body.get("message")
+                    or response.text
+                    or f"HTTP {response.status_code}"
+                )
+                logger.error("Paystack HTTP %s: %s", response.status_code, msg)
+                return {"status": False, "message": msg}
+
+            if not body.get("status"):
+                msg = (
+                    body.get("message")
+                    or "Paystack declined the transaction initialize request"
+                )
+                logger.warning("Paystack status=false: %s", msg)
+                return {"status": False, "message": msg}
+
+            return body
+        except requests.exceptions.RequestException as e:
+            logger.error("Paystack request error: %s", e, exc_info=True)
+            logger.error("Secret Key prefix: %s...", cls.get_secret_key()[:10])
+            return {"status": False, "message": str(e)}
 
     @classmethod
     def verify_transaction(cls, reference):
