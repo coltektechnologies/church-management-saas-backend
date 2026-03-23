@@ -109,12 +109,6 @@ else:
 # Custom User Model
 AUTH_USER_MODEL = "accounts.User"
 
-# Custom Authentication Backend
-AUTHENTICATION_BACKENDS = [
-    "accounts.backends.ChurchAuthBackend",
-    "accounts.backends.SafeModelBackend",  # Fallback, handles duplicate emails across churches
-]
-
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -160,6 +154,10 @@ os.makedirs(STATIC_ROOT, exist_ok=True)
 # Media files
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# Log files (must exist before logging.config runs — e.g. Render has no logs/ in repo)
+LOGS_DIR = BASE_DIR / "logs"
+os.makedirs(LOGS_DIR, exist_ok=True)
 
 # Default primary key
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
@@ -256,45 +254,6 @@ SWAGGER_SETTINGS = {
     "USE_SESSION_AUTH": False,
 }
 
-# Logging
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "verbose": {
-            "format": "{levelname} {asctime} {module} {message}",
-            "style": "{",
-        },
-        "simple": {
-            "format": "{message}",
-            "style": "{",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",  # Changed to simple to avoid duplicate timestamps
-            "level": "DEBUG",  # Show all messages including DEBUG
-        },
-        "file": {
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "logs" / "django.log",
-            "formatter": "verbose",
-            "level": "DEBUG",
-        },
-    },
-    "loggers": {
-        "notifications": {
-            "handlers": ["console", "file"],
-            "level": "DEBUG",
-            "propagate": True,
-        },
-    },
-    "root": {
-        "handlers": ["console", "file"],
-        "level": "INFO",
-    },
-}
 AUTHENTICATION_BACKENDS = [
     "accounts.backends.ChurchAuthBackend",  # Our custom authentication backend
     "accounts.backends.SafeModelBackend",  # Fallback, handles duplicate emails across churches
@@ -332,44 +291,68 @@ TWILIO_MESSAGING_SERVICE_SID = os.getenv("TWILIO_MESSAGING_SERVICE_SID")
 # Twilio Test Credentials
 TWILIO_TEST_ACCOUNT_SID = os.getenv("TWILIO_TEST_ACCOUNT_SID")
 
-# Logging Configuration
+# Logging Configuration (paths under LOGS_DIR; directory created at import time)
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {
-        "file": {
-            "level": "DEBUG",
-            "class": "logging.FileHandler",
-            "filename": "logs/registration_debug.log",
-            "formatter": "verbose",
-        },
-        "console": {
-            "level": "DEBUG",
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
     "formatters": {
         "verbose": {
             "format": "{levelname} {asctime} {module} {message}",
             "style": "{",
         },
         "simple": {
+            "format": "{message}",
+            "style": "{",
+        },
+        "simple_level": {
             "format": "{levelname} {message}",
             "style": "{",
         },
     },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple_level",
+            "level": "DEBUG",
+        },
+        "console_notifications": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+            "level": "DEBUG",
+        },
+        "django_file": {
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "django.log"),
+            "formatter": "verbose",
+            "level": "DEBUG",
+        },
+        "registration_file": {
+            "class": "logging.FileHandler",
+            "filename": str(LOGS_DIR / "registration_debug.log"),
+            "formatter": "verbose",
+            "level": "DEBUG",
+        },
+    },
     "loggers": {
+        "notifications": {
+            "handlers": ["console_notifications", "django_file"],
+            "level": "DEBUG",
+            "propagate": True,
+        },
         "django": {
-            "handlers": ["file", "console"],
+            "handlers": ["registration_file", "console"],
             "level": "INFO",
             "propagate": True,
         },
         "accounts": {
-            "handlers": ["file", "console"],
+            "handlers": ["registration_file", "console"],
             "level": "DEBUG",
             "propagate": True,
         },
+    },
+    "root": {
+        "handlers": ["console", "django_file"],
+        "level": "INFO",
     },
 }
 
