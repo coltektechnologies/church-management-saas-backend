@@ -11,8 +11,17 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
-                     Permission, Role, RolePermission, User, UserRole)
+from .models import (
+    AuditLog,
+    Church,
+    ChurchGroup,
+    ChurchGroupMember,
+    Permission,
+    Role,
+    RolePermission,
+    User,
+    UserRole,
+)
 from .models.payment import Payment
 
 # ==========================================
@@ -517,30 +526,41 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             assigned_by=admin_user,  # Self-assigned during registration
         )
 
-        # Send login credentials and church details via email and SMS
-        try:
-            from members.services.credential_service import send_credentials
+        # Send login credentials in background to avoid blocking on SMTP/SMS
+        # (Render and similar hosts often block or delay outbound mail; worker timeout kills request)
+        import threading
 
-            password = validated_data["password"]
-            preference = (
-                "both"
-                if (admin_user.email and admin_user.phone)
-                else ("email" if admin_user.email else "sms")
-            )
-            send_credentials(
-                admin_user,
-                password,
-                notification_preference=preference,
-                allow_initial_admin=True,
-            )
-            logger.info(
-                f"Registration credentials sent to {admin_user.email or admin_user.phone} for church {church.name}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to send registration credentials for {church.name}: {str(e)}",
-                exc_info=True,
-            )
+        password = validated_data["password"]
+        preference = (
+            "both"
+            if (admin_user.email and admin_user.phone)
+            else ("email" if admin_user.email else "sms")
+        )
+
+        def _send_credentials_async():
+            try:
+                from members.services.credential_service import send_credentials
+
+                send_credentials(
+                    admin_user,
+                    password,
+                    notification_preference=preference,
+                    allow_initial_admin=True,
+                )
+                logger.info(
+                    "Registration credentials sent to %s for church %s",
+                    admin_user.email or admin_user.phone,
+                    church.name,
+                )
+            except Exception as e:
+                logger.error(
+                    "Failed to send registration credentials for %s: %s",
+                    church.name,
+                    e,
+                    exc_info=True,
+                )
+
+        threading.Thread(target=_send_credentials_async, daemon=True).start()
 
         # Create audit log
         AuditLog.objects.create(
@@ -1363,8 +1383,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
             # Send credentials if requested
             if send_credentials and user.email:
-                from members.services.credential_service import \
-                    send_credentials
+                from members.services.credential_service import send_credentials
 
                 try:
                     send_credentials(
