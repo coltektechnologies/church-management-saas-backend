@@ -2172,6 +2172,21 @@ def registration_initialize_payment(request):
         )
 
 
+def _session_id_from_registration_paystack_reference(reference):
+    """
+    Parse REG_{registration_session_uuid}_{unix_timestamp}.
+
+    Session IDs are UUIDs and must not be split on every underscore.
+    """
+    if not reference or not str(reference).startswith("REG_"):
+        return None
+    body = str(reference)[4:]
+    session_part, sep, tail = body.rpartition("_")
+    if not sep or not tail.isdigit() or not session_part:
+        return None
+    return session_part
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def registration_verify_payment(request):
@@ -2352,73 +2367,98 @@ def registration_verify_payment(request):
             )
 
         paystack = PaystackAPI()
-        verification = paystack.verify_transaction(reference)
+        verification = paystack.verify_transaction(reference) or {}
+        vdata = verification.get("data")
+        if not isinstance(vdata, dict):
+            vdata = {}
 
-        # Update payment status based on verification
-        try:
-            from .models import Payment
+        paystack_ok = (
+            verification.get("status") is True and vdata.get("status") == "success"
+        )
 
-            payment = Payment.objects.filter(reference=reference).first()
+        from .models import Payment
 
-            if (
-                verification.get("status")
-                and verification["data"]["status"] == "success"
-            ):
-                # Payment successful
-                payment_amount = (
-                    verification["data"]["amount"] / 100
-                )  # Convert from kobo
+        payment = Payment.objects.filter(reference=reference).first()
 
-                if payment:
-                    payment.status = "SUCCESSFUL"
-                    payment.amount = payment_amount
-                    payment.payment_date = timezone.now()
-                    payment.payment_details.update(
-                        {
-                            "status": "success",
-                            "verified_at": timezone.now().isoformat(),
-                            "paystack_reference": verification["data"].get("reference"),
-                            "paystack_message": verification["message"],
-                        }
-                    )
-                    payment.save()
-            else:
-                # Payment failed
-                if payment:
-                    payment.status = "FAILED"
-                    payment.payment_details.update(
-                        {
-                            "status": "failed",
-                            "verified_at": timezone.now().isoformat(),
-                            "paystack_reference": verification.get("data", {}).get(
-                                "reference"
-                            ),
-                            "paystack_message": verification.get(
-                                "message", "Payment verification failed"
-                            ),
-                            "failure_reason": verification.get("data", {}).get(
-                                "gateway_response"
-                            ),
-                        }
-                    )
-                    payment.save()
+        def _ensure_payment_details_dict(pmt):
+            d = pmt.payment_details
+            if not isinstance(d, dict):
+                d = {}
+                pmt.payment_details = d
+            return d
 
+        payment_amount = 0.0
+
+        if paystack_ok:
+            raw_amount = vdata.get("amount")
+            if raw_amount is None:
+                logger.error(
+                    "Paystack verify reported success but amount missing: %s",
+                    verification,
+                )
                 return Response(
                     {
                         "status": "error",
-                        "message": "Payment verification failed",
-                        "details": verification.get("data", {}).get(
-                            "gateway_response", "Payment was not successful"
-                        ),
+                        "message": "Payment verification incomplete",
+                        "details": "Invalid response from payment provider",
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_502_BAD_GATEWAY,
                 )
+            payment_amount = float(raw_amount) / 100.0
 
-        except Exception as e:
-            logger.error(f"Error updating payment status: {str(e)}", exc_info=True)
-            # Continue with the registration even if payment update fails
-            payment_amount = (
-                verification["data"]["amount"] / 100 if verification.get("data") else 0
+            if payment:
+                try:
+                    _ensure_payment_details_dict(payment).update(
+                        {
+                            "status": "success",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": vdata.get("reference"),
+                            "paystack_message": verification.get("message", ""),
+                        }
+                    )
+                    payment.status = "SUCCESSFUL"
+                    payment.amount = payment_amount
+                    payment.payment_date = timezone.now()
+                    payment.save()
+                except Exception as e:
+                    logger.error(
+                        "Error updating payment record after successful verify: %s",
+                        e,
+                        exc_info=True,
+                    )
+        else:
+            if payment:
+                try:
+                    _ensure_payment_details_dict(payment).update(
+                        {
+                            "status": "failed",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": vdata.get("reference"),
+                            "paystack_message": verification.get(
+                                "message", "Payment verification failed"
+                            ),
+                            "failure_reason": vdata.get("gateway_response"),
+                        }
+                    )
+                    payment.status = "FAILED"
+                    payment.save()
+                except Exception as e:
+                    logger.error(
+                        "Error updating payment record after failed verify: %s",
+                        e,
+                        exc_info=True,
+                    )
+
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Payment verification failed",
+                    "details": vdata.get(
+                        "gateway_response",
+                        verification.get("message", "Payment was not successful"),
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Combine all data for final registration
@@ -2482,10 +2522,9 @@ def registration_payment_callback(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Extract session_id from reference (format: REG_{session_id}_{timestamp})
+    # Extract session_id from reference (format: REG_{uuid}_{timestamp})
     try:
-        parts = reference.split("_")
-        session_id = parts[1] if len(parts) >= 3 else None
+        session_id = _session_id_from_registration_paystack_reference(reference)
 
         if not session_id:
             return Response(

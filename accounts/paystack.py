@@ -126,9 +126,20 @@ class PaystackAPI:
         }
 
         try:
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=60)
             response.raise_for_status()
-            return response.json()
+            try:
+                return response.json()
+            except ValueError:
+                logger.error(
+                    "Paystack verify non-JSON (status=%s): %s",
+                    response.status_code,
+                    (response.text or "")[:500],
+                )
+                return {
+                    "status": False,
+                    "message": "Invalid response from Paystack",
+                }
         except requests.exceptions.RequestException as e:
             error_detail = str(e)
             try:
