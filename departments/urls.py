@@ -2,7 +2,8 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_nested.routers import NestedDefaultRouter
 
-from .api_views import get_departments_by_church, get_members_by_church
+from .api_views import DepartmentsByChurchListView
+
 # Import views directly from their modules to avoid circular imports
 from .views.activity_views import DepartmentActivityViewSet
 from .views.department_views import DepartmentViewSet, MemberDepartmentViewSet
@@ -33,12 +34,11 @@ budget_item_router.register(
 
 urlpatterns = [
     # ==========================================
-    # IMPORTANT: These unauthenticated endpoints MUST come BEFORE router URLs
-    # to prevent DepartmentViewSet (IsAuthenticated) from intercepting them
+    # Custom paths MUST come BEFORE router URLs (prefix matching)
     # ==========================================
     path(
         "departments/by-church/",
-        get_departments_by_church,
+        DepartmentsByChurchListView.as_view(),
         name="api-departments-by-church",
     ),
     path(
@@ -127,9 +127,7 @@ urlpatterns = [
 # PATCH  /api/departments/{id}/activities/{activity_id}/ - Partial update
 # DELETE /api/departments/{id}/activities/{activity_id}/ - Soft delete
 #
-# Department Head Form Endpoints (NO AUTH REQUIRED):
-# GET    /departments/api/departments/by-church/?church_id=<uuid> - Get departments by church ID
-# GET    /departments/api/members/members/by-church/?church_id=<uuid> - Get members by church ID
+# By-church helpers (JWT + church scope): see MembersByChurchListView, DepartmentsByChurchListView
 #
 # Department Endpoints:
 # GET    /api/departments/                          - List all departments

@@ -11,8 +11,11 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from rest_framework import status
-from rest_framework.decorators import (api_view, authentication_classes,
-                                       permission_classes)
+from rest_framework.decorators import (
+    api_view,
+    authentication_classes,
+    permission_classes,
+)
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.authentication import JWTAuthentication
@@ -45,7 +48,9 @@ def verify_paystack_webhook(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def test_paystack(request):
-    """Test Paystack integration"""
+    """Test Paystack integration (development only — hidden in production)."""
+    if not settings.DEBUG:
+        return Response(status=status.HTTP_404_NOT_FOUND)
     try:
         from .paystack import PaystackAPI
 

@@ -1,91 +1,35 @@
-from django.db.models import Q
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_http_methods
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Church
-from members.models import Member
+from accounts.permissions import user_may_access_church_id
 
 from .models import Department
 
 
-@csrf_exempt
-@require_GET
-def get_members_by_church(request):
-    """API endpoint to get members by church ID"""
-    church_id = request.GET.get("church_id")
-    if not church_id:
-        return JsonResponse({"error": "church_id parameter is required"}, status=400)
+class DepartmentsByChurchListView(APIView):
+    """
+    GET /api/departments/by-church/?church_id=<uuid>
+    Requires JWT; user must belong to that church (or be platform admin).
+    """
 
-    try:
-        # Verify the church exists
-        church = Church.objects.get(id=church_id)
+    permission_classes = [IsAuthenticated]
 
-        # Get active members for the church
-        members = Member.objects.filter(church=church, is_active=True).values(
-            "id", "first_name", "last_name"
-        )
+    def get(self, request):
+        church_id = request.query_params.get("church_id")
+        if not church_id:
+            return Response({"error": "church_id parameter is required"}, status=400)
 
-        # Format the response
-        members_list = [
-            {
-                "id": str(member["id"]),
-                "name": f"{member['first_name']} {member['last_name']}",
-            }
-            for member in members
-        ]
+        if not user_may_access_church_id(request.user, church_id):
+            return Response(
+                {"detail": "You do not have access to this church."}, status=403
+            )
 
-        return JsonResponse(members_list, safe=False)
-    except Church.DoesNotExist:
-        return JsonResponse({"error": "Church not found"}, status=404)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        church = get_object_or_404(Church, id=church_id)
 
-
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-
-
-@csrf_exempt
-@require_http_methods(["GET"])
-def get_departments_by_church(request):
-    """Simple API endpoint to get departments by church ID"""
-    # Set CORS headers
-    response = JsonResponse({})
-    response["Access-Control-Allow-Origin"] = "*"
-    response["Access-Control-Allow-Methods"] = "GET, OPTIONS"
-    response["Access-Control-Allow-Headers"] = "X-Requested-With, Content-Type"
-
-    if request.method == "OPTIONS":
-        # Handle preflight requests
-        return response
-
-    church_id = request.GET.get("church_id")
-
-    if not church_id:
-        return JsonResponse({"error": "church_id parameter is required"}, status=400)
-
-    try:
-        # Verify the church exists
-        church = Church.objects.get(id=church_id)
-
-        # Get active departments for the church
         departments = Department.objects.filter(church=church, is_active=True).values(
             "id", "name"
         )
-
-        # Convert to list for JSON serialization
-        departments_list = list(departments)
-
-        return JsonResponse(departments_list, safe=False)
-
-    except Church.DoesNotExist:
-        return JsonResponse({"error": "Church not found"}, status=404)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+        return Response(list(departments))

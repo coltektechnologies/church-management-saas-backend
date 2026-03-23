@@ -1,11 +1,10 @@
 from django.urls import path
 
-from .api_views import get_members_by_church
+from .api_views import MembersByChurchListView
+
 # Import views from their respective modules
-from .views.member_views import (MemberCreateView, MemberDetailAPIView,
-                                 MemberView)
-from .views.visitor_views import (VisitorDetailAPIView, VisitorToMemberView,
-                                  VisitorView)
+from .views.member_views import MemberCreateView, MemberDetailAPIView, MemberView
+from .views.visitor_views import VisitorDetailAPIView, VisitorToMemberView, VisitorView
 
 app_name = "members"
 
@@ -32,5 +31,9 @@ urlpatterns = [
     # ==========================================
     # API ENDPOINTS
     # ==========================================
-    path("members/by-church/", get_members_by_church, name="api-members-by-church"),
+    path(
+        "members/by-church/",
+        MembersByChurchListView.as_view(),
+        name="api-members-by-church",
+    ),
 ]
