@@ -2132,6 +2132,8 @@ def registration_initialize_payment(request):
                 )
 
             session.data["payment_reference"] = reference
+            # Hosted checkout: users often finish Paystack after the default 1h session TTL
+            session.expires_at = timezone.now() + timezone.timedelta(hours=48)
             session.save()
 
             return Response(
@@ -2187,6 +2189,32 @@ def _session_id_from_registration_paystack_reference(reference):
     return session_part
 
 
+def _first_non_empty_str(mapping, *keys):
+    """First non-empty string for any key (handles duplicate form keys / list values)."""
+    if mapping is None or not hasattr(mapping, "get"):
+        return None
+    for key in keys:
+        v = mapping.get(key)
+        if v is None:
+            continue
+        if isinstance(v, (list, tuple)):
+            v = v[0] if v else None
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return None
+
+
+def _paystack_verification_succeeded(verification, vdata):
+    """Normalize Paystack verify payload (hosted env / client quirks)."""
+    top = verification.get("status")
+    top_ok = top is True or str(top or "").lower() in ("true", "1", "yes")
+    inner_ok = str(vdata.get("status") or "").lower() == "success"
+    return bool(top_ok and inner_ok)
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def registration_verify_payment(request):
@@ -2195,7 +2223,9 @@ def registration_verify_payment(request):
     (Skips payment verification for FREE plan)
     """
     session_id = request.data.get("session_id")
-    reference = request.data.get("reference")
+    reference = _first_non_empty_str(
+        request.data, "reference", "trxref", "paystack_reference"
+    )
 
     if not session_id:
         return Response(
@@ -2372,9 +2402,7 @@ def registration_verify_payment(request):
         if not isinstance(vdata, dict):
             vdata = {}
 
-        paystack_ok = (
-            verification.get("status") is True and vdata.get("status") == "success"
-        )
+        paystack_ok = _paystack_verification_succeeded(verification, vdata)
 
         from .models import Payment
 
@@ -2461,19 +2489,32 @@ def registration_verify_payment(request):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Combine all data for final registration
+        # Same explicit mapping as FREE/TRIAL path (merge can miss `phone` / pass extras)
         registration_data = {
-            **step1_data,
-            **step2_data,
-            **step3_data,
+            "church_name": step1_data.get("church_name"),
+            "church_email": step1_data.get("church_email"),
+            "subdomain": step1_data.get("subdomain"),
+            "denomination": step1_data.get("denomination", ""),
+            "country": step1_data.get("country"),
+            "region": step1_data.get("region"),
+            "city": step1_data.get("city"),
+            "address": step1_data.get("address", ""),
+            "website": step1_data.get("website", ""),
+            "phone": step2_data.get("phone_number", ""),
+            "church_size": step1_data.get("church_size"),
+            "first_name": step2_data.get("first_name"),
+            "last_name": step2_data.get("last_name"),
+            "admin_email": step2_data.get("admin_email"),
+            "phone_number": step2_data.get("phone_number"),
+            "position": step2_data.get("position"),
+            "password": step2_data.get("password"),
+            "subscription_plan": step3_data.get("subscription_plan"),
+            "billing_cycle": _normalize_billing_cycle(
+                step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+            ),
             "payment_reference": reference,
             "payment_amount": payment_amount,
         }
-        # Normalize empty billing_cycle: FREE/TRIAL -> 'FREE' (free forever), paid -> 'MONTHLY'
-        registration_data["billing_cycle"] = _normalize_billing_cycle(
-            registration_data.get("billing_cycle"),
-            registration_data.get("subscription_plan"),
-        )
 
         # Create church and admin user
         serializer = ChurchRegistrationCompleteSerializer(data=registration_data)
