@@ -191,15 +191,28 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
+# Primary hosted frontend URL (emails, SMS links, defaults). No trailing slash.
 FRONTEND_BASE_URL = os.getenv(
     "FRONTEND_BASE_URL",
-    "https://opendoor-git-dev-professors-projects-6e829388.vercel.app",
-)
+    "https://opendoor-xi.vercel.app",
+).rstrip("/")
+
+# Allowed browser origins for API calls. Always includes local dev; add production via
+# FRONTEND_BASE_URL and/or CORS_ALLOWED_ORIGINS (comma-separated) on Render/Vercel.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:8080",
-    FRONTEND_BASE_URL,
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
 ]
+if FRONTEND_BASE_URL and FRONTEND_BASE_URL not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(FRONTEND_BASE_URL)
+
+_cors_extra = os.getenv("CORS_ALLOWED_ORIGINS", "")
+for _raw in _cors_extra.split(","):
+    _origin = _raw.strip().rstrip("/")
+    if _origin and _origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_origin)
 
 # Cache Configuration
 CACHES = {
@@ -357,9 +370,7 @@ LOGGING = {
 }
 
 # Frontend URL Configuration (used in notification emails/SMS - do not set to localhost in production)
-_DEFAULT_FRONTEND_LOGIN_URL = (
-    "https://opendoor-git-dev-professors-projects-6e829388.vercel.app/login"
-)
+_DEFAULT_FRONTEND_LOGIN_URL = "https://opendoor-xi.vercel.app/login"
 FRONTEND_LOGIN_URL = os.getenv("FRONTEND_LOGIN_URL", _DEFAULT_FRONTEND_LOGIN_URL)
 FRONTEND_URL = os.getenv("FRONTEND_URL", FRONTEND_BASE_URL)
 

@@ -7,6 +7,7 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from twilio.request_validator import RequestValidator
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 class TwilioWebhookView(APIView):
     """Handle Twilio webhook callbacks for message status updates"""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
 
     @csrf_exempt
     def post(self, request, *args, **kwargs):

@@ -66,7 +66,7 @@ class PaystackAPI:
         frontend_url = getattr(
             settings,
             "FRONTEND_URL",
-            "https://opendoor-git-dev-professors-projects-6e829388.vercel.app",
+            "https://opendoor-xi.vercel.app",
         ).rstrip("/")
 
         payload = {

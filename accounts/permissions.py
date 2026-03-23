@@ -316,3 +316,18 @@ def check_role_level(user, required_level, church=None):
     roles = Role.objects.filter(id__in=role_ids)
     min_level = min(r.level for r in roles)
     return min_level <= required_level
+
+
+def user_may_access_church_id(user, church_id) -> bool:
+    """
+    True if authenticated user may load data scoped to this church_id.
+    Platform admins: any church. Others: only their own church.
+    """
+    if user is None or not getattr(user, "is_authenticated", False):
+        return False
+    if getattr(user, "is_platform_admin", False):
+        return True
+    cid = getattr(user, "church_id", None)
+    if cid is None:
+        return False
+    return str(cid) == str(church_id)
