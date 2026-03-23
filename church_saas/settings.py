@@ -64,6 +64,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "crum.CurrentRequestUserMiddleware",
     # Add ChurchContextMiddleware
     "accounts.middleware.ChurchContextMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
