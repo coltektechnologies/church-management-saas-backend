@@ -11,6 +11,7 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
+from .constants import CHURCH_PLATFORM_DISABLED_MESSAGE
 from .models import (
     AuditLog,
     Church,
@@ -600,6 +601,11 @@ class ChurchLoginSerializer(serializers.Serializer):
             # Find church by subdomain
             church = Church.objects.get(subdomain=subdomain)
 
+            if not church.platform_access_enabled:
+                raise serializers.ValidationError(
+                    {"non_field_errors": CHURCH_PLATFORM_DISABLED_MESSAGE}
+                )
+
             # Find user in this church
             user = User.objects.get(email=email, church=church, is_active=True)
 
@@ -821,6 +827,12 @@ class LoginSerializer(serializers.Serializer):
         if not user.check_password(password):
             raise serializers.ValidationError({"password": "Invalid email or password"})
 
+        if user.church and not getattr(user, "is_platform_admin", False):
+            if not user.church.platform_access_enabled:
+                raise serializers.ValidationError(
+                    {"non_field_errors": CHURCH_PLATFORM_DISABLED_MESSAGE}
+                )
+
         # If church_id was provided, verify user belongs to that church
         if church_id and user.church and str(user.church.id) != str(church_id):
             raise serializers.ValidationError(
@@ -907,6 +919,7 @@ class ChurchSerializer(serializers.ModelSerializer):
             "enable_online_giving",
             "enable_sms_notifications",
             "enable_email_notifications",
+            "platform_access_enabled",
             "primary_color",
             "accent_color",
             "sidebar_color",
@@ -924,6 +937,7 @@ class ChurchSerializer(serializers.ModelSerializer):
             "trial_ends_at",
             "subscription_starts_at",
             "subscription_ends_at",
+            "platform_access_enabled",
         ]
 
     def get_logo_url(self, obj):
@@ -958,6 +972,7 @@ class ChurchListSerializer(serializers.ModelSerializer):
             "status_display",
             "subscription_plan",
             "user_count",
+            "platform_access_enabled",
             "created_at",
         ]
         read_only_fields = ["id"]
@@ -965,6 +980,12 @@ class ChurchListSerializer(serializers.ModelSerializer):
     def get_user_count(self, obj):
         """Get active user count"""
         return obj.users.filter(is_active=True).count()
+
+
+class ChurchPlatformAccessSerializer(serializers.Serializer):
+    """Platform admin only: enable or disable tenant access (login + API)."""
+
+    platform_access_enabled = serializers.BooleanField(required=True)
 
 
 class ChurchUpdateSerializer(serializers.ModelSerializer):

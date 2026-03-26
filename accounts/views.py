@@ -35,6 +35,7 @@ from .serializers import (
     ChurchGroupSerializer,
     ChurchListSerializer,
     ChurchLoginSerializer,
+    ChurchPlatformAccessSerializer,
     ChurchRegistrationCompleteSerializer,
     ChurchRegistrationStep1Serializer,
     ChurchRegistrationStep2Serializer,
@@ -244,6 +245,65 @@ class ChurchDetailAPIView(APIView):
         church.save()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChurchPlatformAccessAPIView(APIView):
+    """
+    Enable or disable a church's access to login and API (platform admins only).
+    PATCH body: {"platform_access_enabled": true|false}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Set whether a church may log in and use the API. "
+            "Only platform administrators. When disabled, tenant users see a clear "
+            "message at login and JWT requests return 401."
+        ),
+        request_body=ChurchPlatformAccessSerializer,
+        responses={
+            200: openapi.Response(
+                "Updated",
+                examples={
+                    "application/json": {
+                        "id": "uuid",
+                        "name": "Example Church",
+                        "platform_access_enabled": False,
+                    }
+                },
+            ),
+            400: "Validation error",
+            403: "Not a platform administrator",
+            404: "Church not found",
+        },
+        tags=["Churches"],
+    )
+    def patch(self, request, pk):
+        if not request.user.is_platform_admin:
+            return Response(
+                {"detail": "Only platform administrators can change church access."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            church = Church.objects.get(pk=pk, deleted_at__isnull=True)
+        except Church.DoesNotExist:
+            return Response(
+                {"detail": "Church not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        ser = ChurchPlatformAccessSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        church.platform_access_enabled = ser.validated_data["platform_access_enabled"]
+        church.save(update_fields=["platform_access_enabled", "updated_at"])
+        return Response(
+            {
+                "id": str(church.id),
+                "name": church.name,
+                "platform_access_enabled": church.platform_access_enabled,
+            }
+        )
 
 
 # ==========================================

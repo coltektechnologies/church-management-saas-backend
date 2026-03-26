@@ -105,6 +105,11 @@ class Church(models.Model):
     enable_online_giving = models.BooleanField(default=False)
     enable_sms_notifications = models.BooleanField(default=False)
     enable_email_notifications = models.BooleanField(default=True)
+    # Platform admins can turn this off to block all tenant logins/API access (JWT + login).
+    platform_access_enabled = models.BooleanField(
+        default=True,
+        help_text="When False, church users cannot log in or use the API until re-enabled.",
+    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)

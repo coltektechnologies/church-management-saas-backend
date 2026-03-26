@@ -2,9 +2,18 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.utils.html import format_html
 
-from .models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
-                     Permission, RegistrationSession, Role, RolePermission,
-                     User, UserRole)
+from .models import (
+    AuditLog,
+    Church,
+    ChurchGroup,
+    ChurchGroupMember,
+    Permission,
+    RegistrationSession,
+    Role,
+    RolePermission,
+    User,
+    UserRole,
+)
 
 
 class UserChurchGroupMemberInline(admin.TabularInline):
@@ -32,6 +41,7 @@ class ChurchAdmin(admin.ModelAdmin):
         "city",
         "country",
         "status",
+        "platform_access_enabled",
         "subscription_plan",
         "user_count",
         "created_at",
@@ -115,6 +125,7 @@ class ChurchAdmin(admin.ModelAdmin):
             "Features",
             {
                 "fields": (
+                    "platform_access_enabled",
                     "enable_online_giving",
                     "enable_sms_notifications",
                     "enable_email_notifications",
@@ -302,7 +313,9 @@ class UserAdmin(BaseUserAdmin):
             if send_credentials and obj.email:
                 try:
                     from members.services.credential_service import (
-                        send_credentials_email, send_credentials_sms)
+                        send_credentials_email,
+                        send_credentials_sms,
+                    )
 
                     if notification_preference in ["email", "both"] and obj.email:
                         send_credentials_email(
@@ -784,7 +797,9 @@ def _unregister_unwanted_admin_models():
     # Token blacklist (JWT internals)
     try:
         from rest_framework_simplejwt.token_blacklist.models import (
-            BlacklistedToken, OutstandingToken)
+            BlacklistedToken,
+            OutstandingToken,
+        )
 
         for m in (OutstandingToken, BlacklistedToken):
             try:
@@ -816,10 +831,13 @@ def _unregister_unwanted_admin_models():
 
     # Celery beat / results (periodic tasks, task results)
     try:
-        from django_celery_beat.models import (ClockedSchedule,
-                                               CrontabSchedule,
-                                               IntervalSchedule, PeriodicTask,
-                                               SolarSchedule)
+        from django_celery_beat.models import (
+            ClockedSchedule,
+            CrontabSchedule,
+            IntervalSchedule,
+            PeriodicTask,
+            SolarSchedule,
+        )
 
         for m in (
             PeriodicTask,
