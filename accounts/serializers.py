@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 from datetime import datetime, timedelta
 
 from django.contrib.auth import authenticate
@@ -24,7 +25,7 @@ from .models import (
     UserRole,
 )
 from .models.payment import Payment
-from .tasks import deliver_registration_credentials_task
+from .tasks import run_registration_credentials_delivery
 
 # ==========================================
 # UTILITY VALIDATORS
@@ -528,25 +529,21 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             assigned_by=admin_user,  # Self-assigned during registration
         )
 
-        # Queue login credentials via Celery (avoids blocking web worker on SMTP/SMS).
+        # Send credentials on a daemon thread so SMTP/SMS does not block the response.
+        # Using only Celery .delay() is insufficient on hosts with Redis but no worker:
+        # the task is accepted into the queue but never runs, so users get no email/SMS.
         password = validated_data["password"]
         preference = (
             "both"
             if (admin_user.email and admin_user.phone)
             else ("email" if admin_user.email else "sms")
         )
-        try:
-            deliver_registration_credentials_task.delay(
-                str(admin_user.id),
-                password,
-                preference,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to queue registration credential delivery for church=%s "
-                "(check CELERY_BROKER_URL and Celery worker)",
-                church.name,
-            )
+        uid = str(admin_user.id)
+
+        def _deliver():
+            run_registration_credentials_delivery(uid, password, preference)
+
+        threading.Thread(target=_deliver, daemon=True).start()
 
         # Create audit log
         AuditLog.objects.create(
