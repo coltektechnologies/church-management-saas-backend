@@ -550,10 +550,22 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
                 )
                 if outcome.get("success"):
                     logger.info(
-                        "Registration credentials sent to %s for church %s",
-                        admin_user.email or admin_user.phone,
+                        "Registration credential delivery church=%s email_sent=%s sms_sent=%s",
                         church.name,
+                        outcome.get("email_sent"),
+                        outcome.get("sms_sent"),
                     )
+                    if outcome.get("email_sent") is False and outcome.get("sms_sent"):
+                        logger.warning(
+                            "Registration email failed but SMS succeeded for church=%s; "
+                            "check SMTP/network (e.g. Errno 101 unreachable from host).",
+                            church.name,
+                        )
+                    if outcome.get("sms_sent") is False and outcome.get("email_sent"):
+                        logger.warning(
+                            "Registration SMS failed but email succeeded for church=%s.",
+                            church.name,
+                        )
                 else:
                     logger.warning(
                         "Registration credentials not delivered for %s (church %s): %s",

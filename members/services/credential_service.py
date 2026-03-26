@@ -165,6 +165,9 @@ def send_credentials(
                 results["sms_sent"] = False
                 results["sms_error"] = str(e)
 
+        email_sent = results.get("email_sent")
+        sms_sent = results.get("sms_sent")
+
         # Check if at least one method was successful
         if (
             (notification_preference == "email" and results.get("email_sent", False))
@@ -174,7 +177,11 @@ def send_credentials(
                 and (results.get("email_sent", False) or results.get("sms_sent", False))
             )
         ):
-            return {"success": True}
+            return {
+                "success": True,
+                "email_sent": email_sent,
+                "sms_sent": sms_sent,
+            }
         else:
             error_msg = "Failed to send credentials: "
             if notification_preference in ["email", "both"] and not results.get(
@@ -187,9 +194,19 @@ def send_credentials(
                 "sms_sent", True
             ):
                 error_msg += f"SMS failed: {results.get('sms_error', 'Unknown error')}"
-            return {"success": False, "error": error_msg.strip()}
+            return {
+                "success": False,
+                "error": error_msg.strip(),
+                "email_sent": email_sent,
+                "sms_sent": sms_sent,
+            }
 
     except Exception as e:
         logger = logging.getLogger(__name__)
         logger.error(f"Error in send_credentials: {str(e)}")
-        return {"success": False, "error": str(e)}
+        return {
+            "success": False,
+            "error": str(e),
+            "email_sent": None,
+            "sms_sent": None,
+        }

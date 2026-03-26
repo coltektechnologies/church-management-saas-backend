@@ -28,6 +28,7 @@ from .models import (
     UserRole,
 )
 from .paystack import PaystackAPI
+from .registration_logging import redact_registration_snapshot
 from .serializers import (
     ChangePasswordSerializer,
     ChurchGroupMemberCreateSerializer,
@@ -2022,9 +2023,12 @@ def registration_initialize_payment(request):
     step2_data = session.data.get("admin", {})
     step3_data = session.data.get("plan", {})
 
-    logger.info(f"[Initialize Payment] Step1 data: {step1_data}")
-    logger.info(f"[Initialize Payment] Step2 data: {step2_data}")
-    logger.info(f"[Initialize Payment] Step3 data: {step3_data}")
+    logger.debug(
+        "[Initialize Payment] registration payload (redacted): step1=%s step2=%s step3=%s",
+        redact_registration_snapshot(step1_data),
+        redact_registration_snapshot(step2_data),
+        redact_registration_snapshot(step3_data),
+    )
 
     try:
         step3_serializer = ChurchRegistrationStep3Serializer(data=step3_data)
@@ -2307,8 +2311,11 @@ def registration_verify_payment(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Get data from session with proper error handling
-    logger.info(f"Session data: {session.data}")  # Debug log
+    # Get data from session with proper error handling (never log secrets at INFO)
+    logger.debug(
+        "registration verify-payment session (redacted): %s",
+        redact_registration_snapshot(dict(session.data)),
+    )
 
     # Check if church data is under 'church' key or at root
     if "church" in session.data:
@@ -2324,9 +2331,12 @@ def registration_verify_payment(request):
     step2_data = session.data.get("admin", {})
     step3_data = session.data.get("plan", {})
 
-    logger.info(f"Step1 data: {step1_data}")  # Debug log
-    logger.info(f"Step2 data: {step2_data}")  # Debug log
-    logger.info(f"Step3 data: {step3_data}")  # Debug log
+    logger.debug(
+        "registration verify-payment steps (redacted): step1=%s step2=%s step3=%s",
+        redact_registration_snapshot(step1_data),
+        redact_registration_snapshot(step2_data),
+        redact_registration_snapshot(step3_data),
+    )
 
     # Check if required data exists
     if not all(
