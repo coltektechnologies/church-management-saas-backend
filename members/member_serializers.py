@@ -293,11 +293,20 @@ class MemberCreateSerializer(serializers.ModelSerializer):
                 church,
                 username=username,
                 password=password,
+                phone_number=(validated_data.get("phone_number") or "").strip(),
             )
 
         return member
 
-    def _create_system_user(self, member, email, church, username=None, password=None):
+    def _create_system_user(
+        self,
+        member,
+        email,
+        church,
+        username=None,
+        password=None,
+        phone_number=None,
+    ):
         # Use provided username or email; generate password if not provided
         username = (username or email).strip()
         password = password or get_random_string(12)
@@ -306,6 +315,8 @@ class MemberCreateSerializer(serializers.ModelSerializer):
         self.generated_username = username
         self.generated_password = password
 
+        phone = (phone_number or "").strip() or None
+
         # Create the user
         user = User.objects.create(
             email=email,
@@ -313,6 +324,7 @@ class MemberCreateSerializer(serializers.ModelSerializer):
             first_name=member.first_name,
             last_name=member.last_name,
             church=church,
+            phone=phone,
             is_active=True,
             email_verified=True,  # Assuming email is verified if coming from admin
         )
@@ -329,41 +341,4 @@ class MemberCreateSerializer(serializers.ModelSerializer):
             # Handle case where member role doesn't exist
             pass
 
-        # TODO: Send email/SMS with credentials
-        # This would be implemented with your email/SMS service
-        self._send_credentials(email, password, member.first_name)
-
-    def _send_credentials(self, email, password, first_name):
-        # This is a placeholder for your email/SMS sending logic
-        # You would typically use Django's email backend or a third-party service
-        try:
-            # Example using Django's send_mail
-            from django.conf import settings
-            from django.core.mail import send_mail
-
-            subject = "Your Church Management System Access"
-            message = (
-                f"Hello {first_name},\n\n"
-                f"Your account has been created with the following credentials:\n"
-                f"Email: {email}\n"
-                f"Password: {password}\n\n"
-                f"Please log in at {settings.FRONTEND_LOGIN_URL} and change your password.\n\n"
-                "Best regards,\nThe Church Team"
-            )
-
-            send_mail(
-                subject=subject,
-                message=message,
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False,
-            )
-
-            # TODO: Add SMS sending logic if needed
-
-        except Exception as e:
-            # Log the error but don't fail the member creation
-            import logging
-
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to send credentials email: {e}")
+        # Email/SMS delivery runs in MemberCreateView on a background thread.

@@ -1,3 +1,6 @@
+import logging
+import threading
+
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -9,6 +12,8 @@ from rest_framework.views import APIView
 from members.member_serializers import MemberCreateSerializer
 from members.models import Member, MemberLocation
 from members.serializers import MemberLocationSerializer, MemberSerializer
+
+logger = logging.getLogger(__name__)
 
 # ==========================================
 # MEMBER VIEWS
@@ -221,63 +226,80 @@ class MemberCreateView(APIView):
                 "message": "Member created successfully",
             }
 
-            # Handle system access and notifications
-            if serializer.validated_data.get(
-                "has_system_access"
-            ) and serializer.validated_data.get("email"):
+            # Handle system access and notifications (matches serializer: user is created when
+            # has_system_access OR send_credentials_via_email OR send_credentials_via_sms, with email)
+            password = getattr(serializer, "generated_password", None)
+            if password and serializer.validated_data.get("email"):
                 response_data["system_access_created"] = True
                 response_data["email"] = serializer.validated_data["email"]
-                # Include username and password (auto-generated if not provided)
                 response_data["username"] = (
                     getattr(serializer, "generated_username", None)
                     or serializer.validated_data["email"]
                 )
-                password = getattr(serializer, "generated_password", None)
-                if password:
-                    response_data["password"] = password
+                response_data["password"] = password
 
-                # Send credentials if requested (email/phone live on member.location)
-                if password:
-                    try:
-                        from members.services.credential_service import (
-                            send_credentials_email, send_credentials_sms)
+                # Send credentials in a background thread so SMTP/SMS cannot block the worker
+                # (avoids Gunicorn WORKER TIMEOUT on slow or unreachable mail servers).
+                send_email = serializer.validated_data.get(
+                    "send_credentials_via_email", False
+                )
+                send_sms = serializer.validated_data.get(
+                    "send_credentials_via_sms", False
+                )
+                if password and (send_email or send_sms):
+                    member_id = member.id
+                    member_email = getattr(
+                        getattr(member, "location", None), "email", None
+                    ) or serializer.validated_data.get("email")
+                    member_phone = getattr(
+                        getattr(member, "location", None), "phone_primary", None
+                    )
 
-                        member_email = getattr(
-                            getattr(member, "location", None), "email", None
-                        ) or serializer.validated_data.get("email")
-                        member_phone = getattr(
-                            getattr(member, "location", None), "phone_primary", None
-                        )
-
-                        # Send email if requested and email exists
-                        if (
-                            serializer.validated_data.get("send_credentials_via_email")
-                            and member_email
-                        ):
-                            send_credentials_email(member, member_email, password)
-                            response_data["email_sent"] = True
-
-                        # Send SMS if requested and phone number exists
-                        if (
-                            serializer.validated_data.get("send_credentials_via_sms")
-                            and member_phone
-                        ):
-                            sms_result = send_credentials_sms(
-                                member, member_phone, password, member_email
+                    def deliver_credentials():
+                        try:
+                            from members.services.credential_service import (
+                                send_credentials_email,
+                                send_credentials_sms,
                             )
-                            response_data["sms_sent"] = sms_result.get("success", False)
-                            if not response_data["sms_sent"]:
-                                response_data["sms_error"] = sms_result.get(
-                                    "error", "SMS delivery failed"
+
+                            m = Member.objects.select_related("church").get(
+                                pk=member_id
+                            )
+                            if send_email and member_email:
+                                try:
+                                    send_credentials_email(
+                                        m,
+                                        member_email,
+                                        password,
+                                        allow_initial_admin=False,
+                                    )
+                                except Exception:
+                                    logger.exception(
+                                        "Member credential email failed (member_id=%s)",
+                                        member_id,
+                                    )
+                            if send_sms and member_phone:
+                                sms_result = send_credentials_sms(
+                                    m,
+                                    member_phone,
+                                    password,
+                                    member_email,
+                                    allow_initial_admin=False,
                                 )
+                                if not sms_result.get("success"):
+                                    logger.error(
+                                        "Member credential SMS failed (member_id=%s): %s",
+                                        member_id,
+                                        sms_result.get("error", sms_result),
+                                    )
+                        except Exception:
+                            logger.exception(
+                                "Member credentials delivery failed (member_id=%s)",
+                                member_id,
+                            )
 
-                    except Exception as e:
-                        # Log the error but don't fail the request
-                        import logging
-
-                        logger = logging.getLogger(__name__)
-                        logger.error(f"Failed to send credentials: {str(e)}")
-                        response_data["notification_error"] = str(e)
+                    threading.Thread(target=deliver_credentials, daemon=True).start()
+                    response_data["credentials_delivery_queued"] = True
 
             return Response(response_data, status=status.HTTP_201_CREATED)
 
