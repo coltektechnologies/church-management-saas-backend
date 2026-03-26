@@ -1,5 +1,4 @@
 import logging
-import threading
 
 from django.utils import timezone
 from drf_yasg import openapi
@@ -12,6 +11,7 @@ from rest_framework.views import APIView
 from members.member_serializers import MemberCreateSerializer
 from members.models import Member, MemberLocation
 from members.serializers import MemberLocationSerializer, MemberSerializer
+from members.tasks import deliver_member_credentials_task
 
 logger = logging.getLogger(__name__)
 
@@ -238,8 +238,7 @@ class MemberCreateView(APIView):
                 )
                 response_data["password"] = password
 
-                # Send credentials in a background thread so SMTP/SMS cannot block the worker
-                # (avoids Gunicorn WORKER TIMEOUT on slow or unreachable mail servers).
+                # Queue credential delivery to Celery so SMTP/SMS cannot block the web worker.
                 send_email = serializer.validated_data.get(
                     "send_credentials_via_email", False
                 )
@@ -247,59 +246,32 @@ class MemberCreateView(APIView):
                     "send_credentials_via_sms", False
                 )
                 if password and (send_email or send_sms):
-                    member_id = member.id
                     member_email = getattr(
                         getattr(member, "location", None), "email", None
                     ) or serializer.validated_data.get("email")
                     member_phone = getattr(
                         getattr(member, "location", None), "phone_primary", None
                     )
-
-                    def deliver_credentials():
-                        try:
-                            from members.services.credential_service import (
-                                send_credentials_email,
-                                send_credentials_sms,
-                            )
-
-                            m = Member.objects.select_related("church").get(
-                                pk=member_id
-                            )
-                            if send_email and member_email:
-                                try:
-                                    send_credentials_email(
-                                        m,
-                                        member_email,
-                                        password,
-                                        allow_initial_admin=False,
-                                    )
-                                except Exception:
-                                    logger.exception(
-                                        "Member credential email failed (member_id=%s)",
-                                        member_id,
-                                    )
-                            if send_sms and member_phone:
-                                sms_result = send_credentials_sms(
-                                    m,
-                                    member_phone,
-                                    password,
-                                    member_email,
-                                    allow_initial_admin=False,
-                                )
-                                if not sms_result.get("success"):
-                                    logger.error(
-                                        "Member credential SMS failed (member_id=%s): %s",
-                                        member_id,
-                                        sms_result.get("error", sms_result),
-                                    )
-                        except Exception:
-                            logger.exception(
-                                "Member credentials delivery failed (member_id=%s)",
-                                member_id,
-                            )
-
-                    threading.Thread(target=deliver_credentials, daemon=True).start()
-                    response_data["credentials_delivery_queued"] = True
+                    try:
+                        deliver_member_credentials_task.delay(
+                            str(member.id),
+                            password,
+                            send_email,
+                            send_sms,
+                            member_email,
+                            member_phone,
+                        )
+                        response_data["credentials_delivery_queued"] = True
+                    except Exception:
+                        logger.exception(
+                            "Failed to queue member credential delivery "
+                            "(check CELERY_BROKER_URL and Celery worker)"
+                        )
+                        response_data["credentials_delivery_queued"] = False
+                        response_data["credentials_delivery_error"] = (
+                            "Could not queue email/SMS delivery. "
+                            "Ensure Redis and a Celery worker are running."
+                        )
 
             return Response(response_data, status=status.HTTP_201_CREATED)
 
