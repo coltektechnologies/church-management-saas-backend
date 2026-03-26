@@ -541,17 +541,25 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             try:
                 from members.services.credential_service import send_credentials
 
-                send_credentials(
+                outcome = send_credentials(
                     admin_user,
                     password,
                     notification_preference=preference,
                     allow_initial_admin=True,
                 )
-                logger.info(
-                    "Registration credentials sent to %s for church %s",
-                    admin_user.email or admin_user.phone,
-                    church.name,
-                )
+                if outcome.get("success"):
+                    logger.info(
+                        "Registration credentials sent to %s for church %s",
+                        admin_user.email or admin_user.phone,
+                        church.name,
+                    )
+                else:
+                    logger.warning(
+                        "Registration credentials not delivered for %s (church %s): %s",
+                        admin_user.email or admin_user.phone,
+                        church.name,
+                        outcome.get("error", "unknown"),
+                    )
             except Exception as e:
                 logger.error(
                     "Failed to send registration credentials for %s: %s",
