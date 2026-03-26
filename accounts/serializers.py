@@ -24,6 +24,7 @@ from .models import (
     UserRole,
 )
 from .models.payment import Payment
+from .tasks import deliver_registration_credentials_task
 
 # ==========================================
 # UTILITY VALIDATORS
@@ -527,61 +528,25 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             assigned_by=admin_user,  # Self-assigned during registration
         )
 
-        # Send login credentials in background to avoid blocking on SMTP/SMS
-        # (Render and similar hosts often block or delay outbound mail; worker timeout kills request)
-        import threading
-
+        # Queue login credentials via Celery (avoids blocking web worker on SMTP/SMS).
         password = validated_data["password"]
         preference = (
             "both"
             if (admin_user.email and admin_user.phone)
             else ("email" if admin_user.email else "sms")
         )
-
-        def _send_credentials_async():
-            try:
-                from members.services.credential_service import send_credentials
-
-                outcome = send_credentials(
-                    admin_user,
-                    password,
-                    notification_preference=preference,
-                    allow_initial_admin=True,
-                )
-                if outcome.get("success"):
-                    logger.info(
-                        "Registration credential delivery church=%s email_sent=%s sms_sent=%s",
-                        church.name,
-                        outcome.get("email_sent"),
-                        outcome.get("sms_sent"),
-                    )
-                    if outcome.get("email_sent") is False and outcome.get("sms_sent"):
-                        logger.warning(
-                            "Registration email failed but SMS succeeded for church=%s; "
-                            "check SMTP/network (e.g. Errno 101 unreachable from host).",
-                            church.name,
-                        )
-                    if outcome.get("sms_sent") is False and outcome.get("email_sent"):
-                        logger.warning(
-                            "Registration SMS failed but email succeeded for church=%s.",
-                            church.name,
-                        )
-                else:
-                    logger.warning(
-                        "Registration credentials not delivered for %s (church %s): %s",
-                        admin_user.email or admin_user.phone,
-                        church.name,
-                        outcome.get("error", "unknown"),
-                    )
-            except Exception as e:
-                logger.error(
-                    "Failed to send registration credentials for %s: %s",
-                    church.name,
-                    e,
-                    exc_info=True,
-                )
-
-        threading.Thread(target=_send_credentials_async, daemon=True).start()
+        try:
+            deliver_registration_credentials_task.delay(
+                str(admin_user.id),
+                password,
+                preference,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to queue registration credential delivery for church=%s "
+                "(check CELERY_BROKER_URL and Celery worker)",
+                church.name,
+            )
 
         # Create audit log
         AuditLog.objects.create(
