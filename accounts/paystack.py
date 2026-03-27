@@ -1,6 +1,7 @@
 import logging
 import os
 from decimal import Decimal
+from urllib.parse import quote
 
 import requests
 from django.conf import settings
@@ -81,46 +82,104 @@ class PaystackAPI:
             payload["metadata"] = metadata
 
         try:
-            response = requests.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            error_detail = str(e)
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
             try:
-                error_detail = response.text
-            except:
-                pass
-            logger.error(f"Paystack API Error: {error_detail}")
-            logger.error(
-                f"Response Status: {response.status_code if 'response' in locals() else 'No response'}"
-            )
-            logger.error(f"Secret Key being used: {cls.get_secret_key()[:10]}...")
-            return {"status": False, "message": error_detail}
+                body = response.json()
+            except ValueError:
+                logger.error("Paystack non-JSON response: %s", response.text[:500])
+                return {
+                    "status": False,
+                    "message": response.text or "Invalid response from Paystack",
+                }
+
+            if response.status_code >= 400:
+                msg = (
+                    body.get("message")
+                    or response.text
+                    or f"HTTP {response.status_code}"
+                )
+                logger.error("Paystack HTTP %s: %s", response.status_code, msg)
+                return {"status": False, "message": msg}
+
+            if not body.get("status"):
+                msg = (
+                    body.get("message")
+                    or "Paystack declined the transaction initialize request"
+                )
+                logger.warning("Paystack status=false: %s", msg)
+                return {"status": False, "message": msg}
+
+            return body
+        except requests.exceptions.RequestException as e:
+            logger.error("Paystack request error: %s", e, exc_info=True)
+            logger.error("Secret Key prefix: %s...", cls.get_secret_key()[:10])
+            return {"status": False, "message": str(e)}
 
     @classmethod
     def verify_transaction(cls, reference):
         """
         Verify a transaction using the reference
         """
-        url = f"{cls.BASE_URL}/transaction/verify/{reference}"
+        ref = str(reference or "").strip()
+        if not ref:
+            return {"status": False, "message": "Missing payment reference"}
+
+        # Path segment: keep unreserved chars (UUID, REG_ prefix) unescaped
+        encoded = quote(ref, safe="-_.~")
+        url = f"{cls.BASE_URL}/transaction/verify/{encoded}"
         headers = {
             "Authorization": f"Bearer {cls.get_secret_key()}",
             "Content-Type": "application/json",
         }
 
         try:
-            response = requests.get(url, headers=headers)
-            response.raise_for_status()
-            return response.json()
+            response = requests.get(url, headers=headers, timeout=60)
+            try:
+                body = response.json()
+            except ValueError:
+                logger.error(
+                    "Paystack verify non-JSON (status=%s): %s",
+                    response.status_code,
+                    (response.text or "")[:500],
+                )
+                return {
+                    "status": False,
+                    "message": "Invalid response from Paystack",
+                }
+
+            if response.status_code >= 400:
+                msg = (
+                    (body.get("message") if isinstance(body, dict) else None)
+                    or (response.text or "").strip()
+                    or f"HTTP {response.status_code}"
+                )
+                logger.error(
+                    "Paystack verify HTTP %s: %s",
+                    response.status_code,
+                    msg[:500],
+                )
+                if response.status_code in (401, 403):
+                    msg = (
+                        f"{msg} "
+                        "(Check PAYSTACK_SECRET_KEY on the server matches live vs test "
+                        "with the key used at checkout.)"
+                    )
+                out = {"status": False, "message": msg}
+                if isinstance(body, dict) and isinstance(body.get("data"), dict):
+                    out["data"] = body["data"]
+                return out
+
+            return body
         except requests.exceptions.RequestException as e:
             error_detail = str(e)
             try:
                 error_detail = response.text
-            except:
+            except Exception:
                 pass
-            logger.error(f"Error verifying transaction: {error_detail}")
+            logger.error("Error verifying transaction: %s", error_detail)
             logger.error(
-                f"Response Status: {response.status_code if 'response' in locals() else 'No response'}"
+                "Response Status: %s",
+                response.status_code if "response" in locals() else "No response",
             )
             return {"status": False, "message": error_detail}
 

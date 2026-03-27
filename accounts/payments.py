@@ -18,7 +18,8 @@ from rest_framework.decorators import (
 )
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework_simplejwt.authentication import JWTAuthentication
+
+from accounts.authentication import ChurchAwareJWTAuthentication
 
 from .models import Church, Payment, User
 from .paystack import PaystackAPI
@@ -83,7 +84,7 @@ def test_paystack(request):
 
 
 @api_view(["POST"])
-@authentication_classes([JWTAuthentication])
+@authentication_classes([ChurchAwareJWTAuthentication])
 @permission_classes([IsAuthenticated])
 def initialize_payment(request):
     """Initialize a payment transaction and create PENDING Payment record"""

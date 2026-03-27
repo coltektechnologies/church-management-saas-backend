@@ -1,5 +1,6 @@
 import logging
 import re
+import threading
 from datetime import datetime, timedelta
 
 from django.contrib.auth import authenticate
@@ -10,10 +11,24 @@ logger = logging.getLogger(__name__)
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
-                     Permission, Role, RolePermission, User, UserRole)
+from .constants import CHURCH_PLATFORM_DISABLED_MESSAGE
+from .models import (
+    AuditLog,
+    Church,
+    ChurchGroup,
+    ChurchGroupMember,
+    Permission,
+    Role,
+    RolePermission,
+    User,
+    UserRole,
+)
 from .models.payment import Payment
+from .tasks import run_registration_credentials_delivery
 
 # ==========================================
 # UTILITY VALIDATORS
@@ -517,30 +532,21 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             assigned_by=admin_user,  # Self-assigned during registration
         )
 
-        # Send login credentials and church details via email and SMS
-        try:
-            from members.services.credential_service import send_credentials
+        # Send credentials on a daemon thread so SMTP/SMS does not block the response.
+        # Using only Celery .delay() is insufficient on hosts with Redis but no worker:
+        # the task is accepted into the queue but never runs, so users get no email/SMS.
+        password = validated_data["password"]
+        preference = (
+            "both"
+            if (admin_user.email and admin_user.phone)
+            else ("email" if admin_user.email else "sms")
+        )
+        uid = str(admin_user.id)
 
-            password = validated_data["password"]
-            preference = (
-                "both"
-                if (admin_user.email and admin_user.phone)
-                else ("email" if admin_user.email else "sms")
-            )
-            send_credentials(
-                admin_user,
-                password,
-                notification_preference=preference,
-                allow_initial_admin=True,
-            )
-            logger.info(
-                f"Registration credentials sent to {admin_user.email or admin_user.phone} for church {church.name}"
-            )
-        except Exception as e:
-            logger.error(
-                f"Failed to send registration credentials for {church.name}: {str(e)}",
-                exc_info=True,
-            )
+        def _deliver():
+            run_registration_credentials_delivery(uid, password, preference)
+
+        threading.Thread(target=_deliver, daemon=True).start()
 
         # Create audit log
         AuditLog.objects.create(
@@ -571,6 +577,11 @@ class ChurchLoginSerializer(serializers.Serializer):
         try:
             # Find church by subdomain
             church = Church.objects.get(subdomain=subdomain)
+
+            if not church.platform_access_enabled:
+                raise serializers.ValidationError(
+                    {"non_field_errors": CHURCH_PLATFORM_DISABLED_MESSAGE}
+                )
 
             # Find user in this church
             user = User.objects.get(email=email, church=church, is_active=True)
@@ -793,6 +804,12 @@ class LoginSerializer(serializers.Serializer):
         if not user.check_password(password):
             raise serializers.ValidationError({"password": "Invalid email or password"})
 
+        if user.church and not getattr(user, "is_platform_admin", False):
+            if not user.church.platform_access_enabled:
+                raise serializers.ValidationError(
+                    {"non_field_errors": CHURCH_PLATFORM_DISABLED_MESSAGE}
+                )
+
         # If church_id was provided, verify user belongs to that church
         if church_id and user.church and str(user.church.id) != str(church_id):
             raise serializers.ValidationError(
@@ -823,6 +840,33 @@ class LoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
+
+
+class LogoutSerializer(serializers.Serializer):
+    """Blacklist a refresh token for the authenticated user."""
+
+    refresh = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("Authentication required.")
+        try:
+            token = RefreshToken(attrs["refresh"])
+        except TokenError as e:
+            raise serializers.ValidationError({"refresh": [str(e)]}) from e
+        token_uid = token.get(api_settings.USER_ID_CLAIM)
+        if token_uid is None or str(token_uid) != str(request.user.id):
+            raise serializers.ValidationError(
+                {"refresh": ["Refresh token does not match the authenticated user."]}
+            )
+        attrs["_token"] = token
+        return attrs
+
+    def create(self, validated_data):
+        token = validated_data.pop("_token")
+        token.blacklist()
+        return self.context["request"].user
 
 
 # ==========================================
@@ -879,6 +923,7 @@ class ChurchSerializer(serializers.ModelSerializer):
             "enable_online_giving",
             "enable_sms_notifications",
             "enable_email_notifications",
+            "platform_access_enabled",
             "primary_color",
             "accent_color",
             "sidebar_color",
@@ -896,6 +941,7 @@ class ChurchSerializer(serializers.ModelSerializer):
             "trial_ends_at",
             "subscription_starts_at",
             "subscription_ends_at",
+            "platform_access_enabled",
         ]
 
     def get_logo_url(self, obj):
@@ -930,6 +976,7 @@ class ChurchListSerializer(serializers.ModelSerializer):
             "status_display",
             "subscription_plan",
             "user_count",
+            "platform_access_enabled",
             "created_at",
         ]
         read_only_fields = ["id"]
@@ -937,6 +984,12 @@ class ChurchListSerializer(serializers.ModelSerializer):
     def get_user_count(self, obj):
         """Get active user count"""
         return obj.users.filter(is_active=True).count()
+
+
+class ChurchPlatformAccessSerializer(serializers.Serializer):
+    """Platform admin only: enable or disable tenant access (login + API)."""
+
+    platform_access_enabled = serializers.BooleanField(required=True)
 
 
 class ChurchUpdateSerializer(serializers.ModelSerializer):
@@ -1363,8 +1416,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
 
             # Send credentials if requested
             if send_credentials and user.email:
-                from members.services.credential_service import \
-                    send_credentials
+                from members.services.credential_service import send_credentials
 
                 try:
                     send_credentials(

@@ -3,6 +3,7 @@ import time
 import uuid
 
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
 from drf_yasg import openapi
@@ -14,25 +15,55 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
-                     Permission, RegistrationSession, Role, RolePermission,
-                     User, UserRole)
+from .models import (
+    AuditLog,
+    Church,
+    ChurchGroup,
+    ChurchGroupMember,
+    Permission,
+    RegistrationSession,
+    Role,
+    RolePermission,
+    User,
+    UserRole,
+)
 from .paystack import PaystackAPI
-from .serializers import (ChangePasswordSerializer,
-                          ChurchGroupMemberCreateSerializer,
-                          ChurchGroupMemberSerializer, ChurchGroupSerializer,
-                          ChurchListSerializer, ChurchLoginSerializer,
-                          ChurchRegistrationCompleteSerializer,
-                          ChurchRegistrationStep1Serializer,
-                          ChurchRegistrationStep2Serializer,
-                          ChurchRegistrationStep3Serializer, ChurchSerializer,
-                          LoginSerializer, PermissionSerializer,
-                          RegisterSerializer, RolePermissionSerializer,
-                          RoleSerializer, UserCreateSerializer,
-                          UserListSerializer, UserRoleSerializer,
-                          UserSerializer, UserUpdateSerializer)
+from .registration_logging import redact_registration_snapshot
+from .serializers import (
+    ChangePasswordSerializer,
+    ChurchGroupMemberCreateSerializer,
+    ChurchGroupMemberSerializer,
+    ChurchGroupSerializer,
+    ChurchListSerializer,
+    ChurchLoginSerializer,
+    ChurchPlatformAccessSerializer,
+    ChurchRegistrationCompleteSerializer,
+    ChurchRegistrationStep1Serializer,
+    ChurchRegistrationStep2Serializer,
+    ChurchRegistrationStep3Serializer,
+    ChurchSerializer,
+    LoginSerializer,
+    LogoutSerializer,
+    PermissionSerializer,
+    RegisterSerializer,
+    RolePermissionSerializer,
+    RoleSerializer,
+    UserCreateSerializer,
+    UserListSerializer,
+    UserRoleSerializer,
+    UserSerializer,
+    UserUpdateSerializer,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
 
 # ==========================================
 # CHURCH VIEWS
@@ -224,6 +255,65 @@ class ChurchDetailAPIView(APIView):
         church.save()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChurchPlatformAccessAPIView(APIView):
+    """
+    Enable or disable a church's access to login and API (platform admins only).
+    PATCH body: {"platform_access_enabled": true|false}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Set whether a church may log in and use the API. "
+            "Only platform administrators. When disabled, tenant users see a clear "
+            "message at login and JWT requests return 401."
+        ),
+        request_body=ChurchPlatformAccessSerializer,
+        responses={
+            200: openapi.Response(
+                "Updated",
+                examples={
+                    "application/json": {
+                        "id": "uuid",
+                        "name": "Example Church",
+                        "platform_access_enabled": False,
+                    }
+                },
+            ),
+            400: "Validation error",
+            403: "Not a platform administrator",
+            404: "Church not found",
+        },
+        tags=["Churches"],
+    )
+    def patch(self, request, pk):
+        if not request.user.is_platform_admin:
+            return Response(
+                {"detail": "Only platform administrators can change church access."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        try:
+            church = Church.objects.get(pk=pk, deleted_at__isnull=True)
+        except Church.DoesNotExist:
+            return Response(
+                {"detail": "Church not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        ser = ChurchPlatformAccessSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        church.platform_access_enabled = ser.validated_data["platform_access_enabled"]
+        church.save(update_fields=["platform_access_enabled", "updated_at"])
+        return Response(
+            {
+                "id": str(church.id),
+                "name": church.name,
+                "platform_access_enabled": church.platform_access_enabled,
+            }
+        )
 
 
 # ==========================================
@@ -529,6 +619,13 @@ class UserDetailAPIView(APIView):
 # ==========================================
 
 
+def _client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
+
 class LoginAPIView(APIView):
     """User login endpoint"""
 
@@ -606,6 +703,58 @@ class LoginAPIView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LogoutAPIView(APIView):
+    """Blacklist the refresh token so it cannot be used again (JWT logout)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Logout by blacklisting the refresh token. Send the refresh token from "
+            "login and authenticate with your current access token. Clear both "
+            "tokens on the client; the access token may remain valid until it expires."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["refresh"],
+            properties={
+                "refresh": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="JWT refresh token to invalidate",
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Logged out",
+                examples={
+                    "application/json": {"message": "Successfully logged out"},
+                },
+            ),
+            400: "Validation error",
+        },
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        church = getattr(request.user, "church", None)
+        if church is not None:
+            AuditLog.objects.create(
+                user=request.user,
+                church=church,
+                action="LOGOUT",
+                model_name="User",
+                object_id=str(request.user.id),
+                description=f"User {request.user.email} logged out",
+                ip_address=_client_ip(request),
+                user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:2000],
+            )
+        return Response({"message": "Successfully logged out"})
 
 
 class ChangePasswordAPIView(APIView):
@@ -1895,18 +2044,43 @@ def registration_initialize_payment(request):
         )
 
     try:
-        # Get the registration session
         session = RegistrationSession.objects.get(
-            id=session_id, step=3, expires_at__gt=timezone.now()
+            id=session_id, expires_at__gt=timezone.now()
         )
     except RegistrationSession.DoesNotExist:
         return Response(
             {
                 "status": "error",
-                "message": "Please complete step 3 first or session expired",
+                "message": (
+                    "Registration session not found or expired. "
+                    "Please start signup again from the beginning."
+                ),
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+    except (ValueError, TypeError, ValidationError):
+        return Response(
+            {"status": "error", "message": "Invalid session id."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Must have completed plan selection (step 3 on server)
+    if session.step < 3:
+        plan_stub = session.data.get("plan") or {}
+        if plan_stub.get("subscription_plan"):
+            session.step = 3
+            session.save(update_fields=["step", "updated_at"])
+        else:
+            return Response(
+                {
+                    "status": "error",
+                    "message": (
+                        "Please complete the subscription plan step before paying. "
+                        "Go back and continue from plan selection."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     # Get data from session with proper structure handling
     step1_data = session.data.get("church", {}) or {
@@ -1917,20 +2091,38 @@ def registration_initialize_payment(request):
     step2_data = session.data.get("admin", {})
     step3_data = session.data.get("plan", {})
 
-    logger.info(f"[Initialize Payment] Step1 data: {step1_data}")
-    logger.info(f"[Initialize Payment] Step2 data: {step2_data}")
-    logger.info(f"[Initialize Payment] Step3 data: {step3_data}")
+    logger.debug(
+        "[Initialize Payment] registration payload (redacted): step1=%s step2=%s step3=%s",
+        redact_registration_snapshot(step1_data),
+        redact_registration_snapshot(step2_data),
+        redact_registration_snapshot(step3_data),
+    )
 
     try:
-        # Get plan details
         step3_serializer = ChurchRegistrationStep3Serializer(data=step3_data)
-        step3_serializer.is_valid()
-        plan_details = step3_serializer.get_plan_details(
-            step3_data["subscription_plan"], step3_data.get("billing_cycle", "MONTHLY")
-        )
+        if not step3_serializer.is_valid():
+            return Response(
+                {
+                    "status": "error",
+                    "message": (
+                        "Subscription data is missing or invalid. "
+                        "Go back to the plan step and select your plan again."
+                    ),
+                    "errors": step3_serializer.errors,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        vd = step3_serializer.validated_data
+        sub_plan = vd["subscription_plan"]
+        billing_cycle = (vd.get("billing_cycle") or "").strip() or "MONTHLY"
+        if billing_cycle.upper() in ("MONTHLY", "YEARLY"):
+            billing_cycle = billing_cycle.upper()
+
+        plan_details = step3_serializer.get_plan_details(sub_plan, billing_cycle)
 
         # Check if it's FREE or TRIAL plan - complete registration immediately (no verify-payment needed)
-        if step3_data["subscription_plan"] in ("FREE", "TRIAL"):
+        if sub_plan in ("FREE", "TRIAL"):
             if not all(
                 [
                     step1_data.get("church_name"),
@@ -1961,7 +2153,7 @@ def registration_initialize_payment(request):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            prefix = step3_data["subscription_plan"]
+            prefix = sub_plan
             reference = f"{prefix}_{session_id}_{int(time.time())}"
 
             # Build registration data and complete registration in one step
@@ -1983,9 +2175,9 @@ def registration_initialize_payment(request):
                 "phone_number": step2_data.get("phone_number"),
                 "position": step2_data.get("position"),
                 "password": step2_data.get("password"),
-                "subscription_plan": step3_data["subscription_plan"],
+                "subscription_plan": sub_plan,
                 "billing_cycle": _normalize_billing_cycle(
-                    step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+                    vd.get("billing_cycle"), sub_plan
                 ),
                 "payment_reference": reference,
                 "payment_amount": 0,
@@ -2016,46 +2208,71 @@ def registration_initialize_payment(request):
             )
 
         # Paid plans: Initialize Paystack payment
+        admin_email = (step2_data.get("admin_email") or "").strip()
+        if not admin_email:
+            return Response(
+                {
+                    "status": "error",
+                    "message": (
+                        "Missing admin email from registration. "
+                        "Please go back and complete the admin details step."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         reference = f"REG_{session_id}_{int(time.time())}"
 
-        # Initialize Paystack payment
         paystack = PaystackAPI()
 
-        # Convert to kobo (multiply by 100)
-        amount_kobo = int(plan_details["total_price"] * 100)
-
         logger.info(
-            f"Initializing Paystack payment: email={step2_data['admin_email']}, amount_dollars={plan_details['total_price']}, plan={step3_data['subscription_plan']}"
+            "Initializing Paystack payment: email=%s, amount=%s, plan=%s",
+            admin_email,
+            plan_details["total_price"],
+            sub_plan,
         )
 
         response = paystack.initialize_transaction(
-            email=step2_data["admin_email"],
-            amount=plan_details[
-                "total_price"
-            ],  # Pass the amount in dollars, method will convert to kobo
+            email=admin_email,
+            amount=float(plan_details["total_price"]),
             reference=reference,
             metadata={
-                "session_id": session_id,
+                "session_id": str(session_id),
                 "purpose": "church_registration",
-                "subscription_plan": step3_data["subscription_plan"],
+                "subscription_plan": sub_plan,
                 "billing_cycle": _normalize_billing_cycle(
-                    step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+                    vd.get("billing_cycle"), sub_plan
                 ),
                 "church_name": step1_data.get("church_name", "Church"),
-                "admin_email": step2_data.get("admin_email", ""),
+                "admin_email": admin_email,
             },
         )
 
-        if response.get("status"):
-            # Store payment reference
+        if response.get("status") is True:
+            payload = response.get("data") or {}
+            authorization_url = payload.get("authorization_url")
+            if not authorization_url:
+                logger.error(
+                    "Paystack returned success but no authorization_url: %s", response
+                )
+                return Response(
+                    {
+                        "status": "error",
+                        "message": "Payment gateway did not return a checkout URL. Try again later.",
+                    },
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
             session.data["payment_reference"] = reference
+            # Hosted checkout: users often finish Paystack after the default 1h session TTL
+            session.expires_at = timezone.now() + timezone.timedelta(hours=48)
             session.save()
 
             return Response(
                 {
                     "status": "success",
-                    "authorization_url": response["data"]["authorization_url"],
-                    "access_code": response["data"]["access_code"],
+                    "authorization_url": authorization_url,
+                    "access_code": payload.get("access_code", ""),
                     "reference": reference,
                     "amount": plan_details["total_price"],
                     "session_id": str(session.id),
@@ -2063,14 +2280,18 @@ def registration_initialize_payment(request):
                 },
                 status=status.HTTP_200_OK,
             )
-        else:
-            return Response(
-                {
-                    "status": "error",
-                    "message": response.get("message", "Failed to initialize payment"),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+
+        paystack_msg = (
+            response.get("message") or "Failed to initialize payment with Paystack"
+        )
+        logger.warning("Paystack initialize failed: %s", paystack_msg)
+        return Response(
+            {
+                "status": "error",
+                "message": paystack_msg,
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     except Exception as e:
         logger.error(
@@ -2085,6 +2306,47 @@ def registration_initialize_payment(request):
         )
 
 
+def _session_id_from_registration_paystack_reference(reference):
+    """
+    Parse REG_{registration_session_uuid}_{unix_timestamp}.
+
+    Session IDs are UUIDs and must not be split on every underscore.
+    """
+    if not reference or not str(reference).startswith("REG_"):
+        return None
+    body = str(reference)[4:]
+    session_part, sep, tail = body.rpartition("_")
+    if not sep or not tail.isdigit() or not session_part:
+        return None
+    return session_part
+
+
+def _first_non_empty_str(mapping, *keys):
+    """First non-empty string for any key (handles duplicate form keys / list values)."""
+    if mapping is None or not hasattr(mapping, "get"):
+        return None
+    for key in keys:
+        v = mapping.get(key)
+        if v is None:
+            continue
+        if isinstance(v, (list, tuple)):
+            v = v[0] if v else None
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return None
+
+
+def _paystack_verification_succeeded(verification, vdata):
+    """Normalize Paystack verify payload (hosted env / client quirks)."""
+    top = verification.get("status")
+    top_ok = top is True or str(top or "").lower() in ("true", "1", "yes")
+    inner_ok = str(vdata.get("status") or "").lower() == "success"
+    return bool(top_ok and inner_ok)
+
+
 @api_view(["POST"])
 @permission_classes([AllowAny])
 def registration_verify_payment(request):
@@ -2093,7 +2355,9 @@ def registration_verify_payment(request):
     (Skips payment verification for FREE plan)
     """
     session_id = request.data.get("session_id")
-    reference = request.data.get("reference")
+    reference = _first_non_empty_str(
+        request.data, "reference", "trxref", "paystack_reference"
+    )
 
     if not session_id:
         return Response(
@@ -2115,8 +2379,11 @@ def registration_verify_payment(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Get data from session with proper error handling
-    logger.info(f"Session data: {session.data}")  # Debug log
+    # Get data from session with proper error handling (never log secrets at INFO)
+    logger.debug(
+        "registration verify-payment session (redacted): %s",
+        redact_registration_snapshot(dict(session.data)),
+    )
 
     # Check if church data is under 'church' key or at root
     if "church" in session.data:
@@ -2132,9 +2399,12 @@ def registration_verify_payment(request):
     step2_data = session.data.get("admin", {})
     step3_data = session.data.get("plan", {})
 
-    logger.info(f"Step1 data: {step1_data}")  # Debug log
-    logger.info(f"Step2 data: {step2_data}")  # Debug log
-    logger.info(f"Step3 data: {step3_data}")  # Debug log
+    logger.debug(
+        "registration verify-payment steps (redacted): step1=%s step2=%s step3=%s",
+        redact_registration_snapshot(step1_data),
+        redact_registration_snapshot(step2_data),
+        redact_registration_snapshot(step3_data),
+    )
 
     # Check if required data exists
     if not all(
@@ -2265,88 +2535,124 @@ def registration_verify_payment(request):
             )
 
         paystack = PaystackAPI()
-        verification = paystack.verify_transaction(reference)
+        verification = paystack.verify_transaction(reference) or {}
+        vdata = verification.get("data")
+        if not isinstance(vdata, dict):
+            vdata = {}
 
-        # Update payment status based on verification
-        try:
-            from .models import Payment
+        paystack_ok = _paystack_verification_succeeded(verification, vdata)
 
-            payment = Payment.objects.filter(reference=reference).first()
+        from .models import Payment
 
-            if (
-                verification.get("status")
-                and verification["data"]["status"] == "success"
-            ):
-                # Payment successful
-                payment_amount = (
-                    verification["data"]["amount"] / 100
-                )  # Convert from kobo
+        payment = Payment.objects.filter(reference=reference).first()
 
-                if payment:
-                    payment.status = "SUCCESSFUL"
-                    payment.amount = payment_amount
-                    payment.payment_date = timezone.now()
-                    payment.payment_details.update(
-                        {
-                            "status": "success",
-                            "verified_at": timezone.now().isoformat(),
-                            "paystack_reference": verification["data"].get("reference"),
-                            "paystack_message": verification["message"],
-                        }
-                    )
-                    payment.save()
-            else:
-                # Payment failed
-                if payment:
-                    payment.status = "FAILED"
-                    payment.payment_details.update(
-                        {
-                            "status": "failed",
-                            "verified_at": timezone.now().isoformat(),
-                            "paystack_reference": verification.get("data", {}).get(
-                                "reference"
-                            ),
-                            "paystack_message": verification.get(
-                                "message", "Payment verification failed"
-                            ),
-                            "failure_reason": verification.get("data", {}).get(
-                                "gateway_response"
-                            ),
-                        }
-                    )
-                    payment.save()
+        def _ensure_payment_details_dict(pmt):
+            d = pmt.payment_details
+            if not isinstance(d, dict):
+                d = {}
+                pmt.payment_details = d
+            return d
 
+        payment_amount = 0.0
+
+        if paystack_ok:
+            raw_amount = vdata.get("amount")
+            if raw_amount is None:
+                logger.error(
+                    "Paystack verify reported success but amount missing: %s",
+                    verification,
+                )
                 return Response(
                     {
                         "status": "error",
-                        "message": "Payment verification failed",
-                        "details": verification.get("data", {}).get(
-                            "gateway_response", "Payment was not successful"
-                        ),
+                        "message": "Payment verification incomplete",
+                        "details": "Invalid response from payment provider",
                     },
-                    status=status.HTTP_400_BAD_REQUEST,
+                    status=status.HTTP_502_BAD_GATEWAY,
                 )
+            payment_amount = float(raw_amount) / 100.0
 
-        except Exception as e:
-            logger.error(f"Error updating payment status: {str(e)}", exc_info=True)
-            # Continue with the registration even if payment update fails
-            payment_amount = (
-                verification["data"]["amount"] / 100 if verification.get("data") else 0
+            if payment:
+                try:
+                    _ensure_payment_details_dict(payment).update(
+                        {
+                            "status": "success",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": vdata.get("reference"),
+                            "paystack_message": verification.get("message", ""),
+                        }
+                    )
+                    payment.status = "SUCCESSFUL"
+                    payment.amount = payment_amount
+                    payment.payment_date = timezone.now()
+                    payment.save()
+                except Exception as e:
+                    logger.error(
+                        "Error updating payment record after successful verify: %s",
+                        e,
+                        exc_info=True,
+                    )
+        else:
+            if payment:
+                try:
+                    _ensure_payment_details_dict(payment).update(
+                        {
+                            "status": "failed",
+                            "verified_at": timezone.now().isoformat(),
+                            "paystack_reference": vdata.get("reference"),
+                            "paystack_message": verification.get(
+                                "message", "Payment verification failed"
+                            ),
+                            "failure_reason": vdata.get("gateway_response"),
+                        }
+                    )
+                    payment.status = "FAILED"
+                    payment.save()
+                except Exception as e:
+                    logger.error(
+                        "Error updating payment record after failed verify: %s",
+                        e,
+                        exc_info=True,
+                    )
+
+            return Response(
+                {
+                    "status": "error",
+                    "message": "Payment verification failed",
+                    "details": vdata.get(
+                        "gateway_response",
+                        verification.get("message", "Payment was not successful"),
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Combine all data for final registration
+        # Same explicit mapping as FREE/TRIAL path (merge can miss `phone` / pass extras)
         registration_data = {
-            **step1_data,
-            **step2_data,
-            **step3_data,
+            "church_name": step1_data.get("church_name"),
+            "church_email": step1_data.get("church_email"),
+            "subdomain": step1_data.get("subdomain"),
+            "denomination": step1_data.get("denomination", ""),
+            "country": step1_data.get("country"),
+            "region": step1_data.get("region"),
+            "city": step1_data.get("city"),
+            "address": step1_data.get("address", ""),
+            "website": step1_data.get("website", ""),
+            "phone": step2_data.get("phone_number", ""),
+            "church_size": step1_data.get("church_size"),
+            "first_name": step2_data.get("first_name"),
+            "last_name": step2_data.get("last_name"),
+            "admin_email": step2_data.get("admin_email"),
+            "phone_number": step2_data.get("phone_number"),
+            "position": step2_data.get("position"),
+            "password": step2_data.get("password"),
+            "subscription_plan": step3_data.get("subscription_plan"),
+            "billing_cycle": _normalize_billing_cycle(
+                step3_data.get("billing_cycle"), step3_data.get("subscription_plan")
+            ),
             "payment_reference": reference,
             "payment_amount": payment_amount,
         }
-        # Normalize empty billing_cycle: FREE/TRIAL -> 'FREE' (free forever), paid -> 'MONTHLY'
-        registration_data["billing_cycle"] = _normalize_billing_cycle(
-            registration_data.get("billing_cycle"),
-            registration_data.get("subscription_plan"),
-        )
 
         # Create church and admin user
         serializer = ChurchRegistrationCompleteSerializer(data=registration_data)
@@ -2395,10 +2701,9 @@ def registration_payment_callback(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    # Extract session_id from reference (format: REG_{session_id}_{timestamp})
+    # Extract session_id from reference (format: REG_{uuid}_{timestamp})
     try:
-        parts = reference.split("_")
-        session_id = parts[1] if len(parts) >= 3 else None
+        session_id = _session_id_from_registration_paystack_reference(reference)
 
         if not session_id:
             return Response(

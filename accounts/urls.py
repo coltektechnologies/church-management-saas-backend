@@ -1,17 +1,36 @@
 from django.urls import path
 
 from .payments import initialize_payment, paystack_webhook, test_paystack
-from .views import (ChangePasswordAPIView, ChurchDetailAPIView,
-                    ChurchGroupDetailAPIView, ChurchGroupMemberDetailAPIView,
-                    ChurchGroupMemberView, ChurchGroupView, ChurchView,
-                    LoginAPIView, PermissionDetailAPIView, PermissionView,
-                    RegisterAPIView, RoleDetailAPIView,
-                    RolePermissionDetailAPIView, RolePermissionView, RoleView,
-                    UserDetailAPIView, UserRoleDetailAPIView, UserRoleView,
-                    UserView, registration_initialize_payment,
-                    registration_payment_callback, registration_plans,
-                    registration_step1, registration_step2, registration_step3,
-                    registration_verify_payment)
+from .views import (
+    ChangePasswordAPIView,
+    ChurchDetailAPIView,
+    ChurchGroupDetailAPIView,
+    ChurchGroupMemberDetailAPIView,
+    ChurchGroupMemberView,
+    ChurchGroupView,
+    ChurchPlatformAccessAPIView,
+    ChurchView,
+    LoginAPIView,
+    LogoutAPIView,
+    PermissionDetailAPIView,
+    PermissionView,
+    RegisterAPIView,
+    RoleDetailAPIView,
+    RolePermissionDetailAPIView,
+    RolePermissionView,
+    RoleView,
+    UserDetailAPIView,
+    UserRoleDetailAPIView,
+    UserRoleView,
+    UserView,
+    registration_initialize_payment,
+    registration_payment_callback,
+    registration_plans,
+    registration_step1,
+    registration_step2,
+    registration_step3,
+    registration_verify_payment,
+)
 
 app_name = "accounts"
 
@@ -20,6 +39,7 @@ urlpatterns = [
     # AUTHENTICATION ENDPOINTS
     # ==========================================
     path("login/", LoginAPIView.as_view(), name="login"),
+    path("logout/", LogoutAPIView.as_view(), name="logout"),
     path("change-password/", ChangePasswordAPIView.as_view(), name="change-password"),
     path("register/", RegisterAPIView.as_view(), name="register"),
     # ==========================================
@@ -64,6 +84,11 @@ urlpatterns = [
     # CHURCH ENDPOINTS
     # ==========================================
     path("churches/", ChurchView.as_view(), name="church-list-create"),
+    path(
+        "churches/<uuid:pk>/platform-access/",
+        ChurchPlatformAccessAPIView.as_view(),
+        name="church-platform-access",
+    ),
     path("churches/<uuid:pk>/", ChurchDetailAPIView.as_view(), name="church-detail"),
     # ==========================================
     # USER ENDPOINTS

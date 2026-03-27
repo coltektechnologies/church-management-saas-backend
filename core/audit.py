@@ -9,11 +9,37 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils import timezone
 
-from accounts.models.base_models import AuditLog
+from accounts.models.base_models import AuditLog, Church
 
 
 class AuditLogger:
     """Helper class for creating audit log entries"""
+
+    @staticmethod
+    def _delete_context_church_id(instance):
+        """Tenant id for DELETE audit rows (stored in metadata; never use church FK on delete)."""
+        if instance is None:
+            return None
+        meta = instance._meta
+        if meta.app_label == "accounts" and meta.model_name == "church" and instance.pk:
+            return str(instance.pk)
+        cid = getattr(instance, "church_id", None)
+        return str(cid) if cid else None
+
+    @staticmethod
+    def _resolve_church_for_audit(instance):
+        """Resolve Church FK for CREATE/UPDATE audit rows only."""
+        if instance is None:
+            return None
+        meta = instance._meta
+        if meta.app_label == "accounts" and meta.model_name == "church":
+            if instance.pk:
+                return Church.objects.filter(pk=instance.pk).first()
+            return None
+        church_id = getattr(instance, "church_id", None)
+        if not church_id:
+            return None
+        return Church.objects.filter(pk=church_id).first()
 
     @classmethod
     def log_action(cls, user, action, instance, request=None, changes=None, **kwargs):
@@ -31,7 +57,21 @@ class AuditLogger:
         if not user or not instance:
             return None
 
-        church = getattr(instance, "church", None)
+        kwargs.pop("church", None)
+
+        # DELETE: never set church FK — cascade/commit order can remove the row before
+        # INSERT is checked, causing IntegrityError. Keep tenant hint in metadata instead.
+        if action == "DELETE":
+            church = None
+            ctx_id = cls._delete_context_church_id(instance)
+            if ctx_id:
+                existing = kwargs.get("metadata")
+                if isinstance(existing, dict):
+                    kwargs["metadata"] = {**existing, "context_church_id": ctx_id}
+                else:
+                    kwargs["metadata"] = {"context_church_id": ctx_id}
+        else:
+            church = cls._resolve_church_for_audit(instance)
 
         # Get request metadata if available
         ip_address = None
