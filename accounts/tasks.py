@@ -7,13 +7,12 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task
-def deliver_registration_credentials_task(
+def run_registration_credentials_delivery(
     user_id: str,
     password: str,
     notification_preference: str,
-):
-    """Send church-registration admin credentials via email/SMS (Celery worker)."""
+) -> None:
+    """Send church-registration admin credentials (email/SMS). Safe to call from a thread or Celery worker."""
     from members.services.credential_service import send_credentials
 
     from .models import User
@@ -49,14 +48,15 @@ def deliver_registration_credentials_task(
                 )
         else:
             logger.warning(
-                "Registration credentials not delivered for %s (CHURCH %s): %s",
+                "Registration credentials not delivered for %s (church %s): %s",
                 admin_user.email or admin_user.phone,
                 church_name,
                 outcome.get("error", "unknown"),
             )
     except User.DoesNotExist:
         logger.error(
-            "deliver_registration_credentials_task: User %s not found", user_id
+            "run_registration_credentials_delivery: User %s not found",
+            user_id,
         )
     except Exception as e:
         logger.error(
@@ -64,3 +64,13 @@ def deliver_registration_credentials_task(
             e,
             exc_info=True,
         )
+
+
+@shared_task
+def deliver_registration_credentials_task(
+    user_id: str,
+    password: str,
+    notification_preference: str,
+):
+    """Optional Celery entrypoint (e.g. if you enqueue from elsewhere)."""
+    run_registration_credentials_delivery(user_id, password, notification_preference)
