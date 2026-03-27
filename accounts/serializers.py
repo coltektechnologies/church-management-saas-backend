@@ -11,6 +11,9 @@ logger = logging.getLogger(__name__)
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .constants import CHURCH_PLATFORM_DISABLED_MESSAGE
 from .models import (
@@ -837,6 +840,33 @@ class LoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
+
+
+class LogoutSerializer(serializers.Serializer):
+    """Blacklist a refresh token for the authenticated user."""
+
+    refresh = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        request = self.context.get("request")
+        if not request or not request.user.is_authenticated:
+            raise serializers.ValidationError("Authentication required.")
+        try:
+            token = RefreshToken(attrs["refresh"])
+        except TokenError as e:
+            raise serializers.ValidationError({"refresh": [str(e)]}) from e
+        token_uid = token.get(api_settings.USER_ID_CLAIM)
+        if token_uid is None or str(token_uid) != str(request.user.id):
+            raise serializers.ValidationError(
+                {"refresh": ["Refresh token does not match the authenticated user."]}
+            )
+        attrs["_token"] = token
+        return attrs
+
+    def create(self, validated_data):
+        token = validated_data.pop("_token")
+        token.blacklist()
+        return self.context["request"].user
 
 
 # ==========================================

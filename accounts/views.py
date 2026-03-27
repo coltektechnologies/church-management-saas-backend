@@ -43,6 +43,7 @@ from .serializers import (
     ChurchRegistrationStep3Serializer,
     ChurchSerializer,
     LoginSerializer,
+    LogoutSerializer,
     PermissionSerializer,
     RegisterSerializer,
     RolePermissionSerializer,
@@ -55,6 +56,14 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
 
 # ==========================================
 # CHURCH VIEWS
@@ -610,6 +619,13 @@ class UserDetailAPIView(APIView):
 # ==========================================
 
 
+def _client_ip(request):
+    forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
+    if forwarded:
+        return forwarded.split(",")[0].strip() or None
+    return request.META.get("REMOTE_ADDR") or None
+
+
 class LoginAPIView(APIView):
     """User login endpoint"""
 
@@ -687,6 +703,58 @@ class LoginAPIView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class LogoutAPIView(APIView):
+    """Blacklist the refresh token so it cannot be used again (JWT logout)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Logout by blacklisting the refresh token. Send the refresh token from "
+            "login and authenticate with your current access token. Clear both "
+            "tokens on the client; the access token may remain valid until it expires."
+        ),
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            required=["refresh"],
+            properties={
+                "refresh": openapi.Schema(
+                    type=openapi.TYPE_STRING,
+                    description="JWT refresh token to invalidate",
+                ),
+            },
+        ),
+        responses={
+            200: openapi.Response(
+                description="Logged out",
+                examples={
+                    "application/json": {"message": "Successfully logged out"},
+                },
+            ),
+            400: "Validation error",
+        },
+        tags=["Authentication"],
+    )
+    def post(self, request):
+        serializer = LogoutSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        church = getattr(request.user, "church", None)
+        if church is not None:
+            AuditLog.objects.create(
+                user=request.user,
+                church=church,
+                action="LOGOUT",
+                model_name="User",
+                object_id=str(request.user.id),
+                description=f"User {request.user.email} logged out",
+                ip_address=_client_ip(request),
+                user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:2000],
+            )
+        return Response({"message": "Successfully logged out"})
 
 
 class ChangePasswordAPIView(APIView):

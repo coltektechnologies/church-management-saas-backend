@@ -32,6 +32,7 @@ schema_view = get_schema_view(
         2. **Get Token**: Receive `access` and `refresh` tokens
         3. **Use Token**: Include in headers: `Authorization: Bearer <access_token>`
         4. **Refresh**: Use refresh token at `/api/token/refresh/` when access expires
+        5. **Logout**: POST to `/api/auth/logout/` with `Authorization: Bearer <access_token>` and body `{"refresh": "<refresh_token>"}` to blacklist the refresh token
 
         ## Multi-Tenancy
         - Each church operates as an independent tenant
