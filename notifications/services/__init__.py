@@ -1,27 +1,33 @@
-# Import services to make them available when importing from notifications.services
-from .email_service import EmailService
-from .notification_service import NotificationService
+"""
+Notification service facades.
+
+`notifications.services` is this package. The church-scoped orchestration (SMSLog / EmailLog,
+in-app Notification helpers) lives in ``notifications.dispatch`` and is re-exported here so
+``from notifications.services import SMSService, EmailService`` matches the API used by views
+and tasks.
+
+Low-level helpers remain importable as submodules, e.g. ``notifications.services.sms_service``.
+"""
+
+from notifications.dispatch import (
+    EmailService,
+    NotificationService,
+    SMSService,
+    TemplateService,
+)
+
+from .email_service import EmailService as SimpleEmailService
+from .notification_service import NotificationService as TwilioNotificationService
 from .sms_service import MNotifySMS
 from .twilio_service import TwilioService
 
-# For backward compatibility
-NotificationService = NotificationService  # Alias for backward compatibility
-
-# Set MNotifySMS as the default SMS service
-SMSService = MNotifySMS
-
-
-# Create a simple TemplateService class as a placeholder
-class TemplateService:
-    """Placeholder for template service functionality"""
-
-    pass
-
-
 __all__ = [
-    "TwilioService",
-    "NotificationService",
-    "SMSService",
     "EmailService",
+    "MNotifySMS",
+    "NotificationService",
+    "SimpleEmailService",
+    "SMSService",
     "TemplateService",
+    "TwilioNotificationService",
+    "TwilioService",
 ]

@@ -15,6 +15,7 @@ class MemberListSerializer(serializers.ModelSerializer):
             "member_since",
             "phone_primary",
             "email",
+            "system_user_id",
         ]
         read_only_fields = fields
 

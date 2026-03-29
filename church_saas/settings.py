@@ -17,7 +17,11 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 # DEBUG = config("DEBUG", default=True, cast=bool)
 DEBUG = os.getenv("DEBUG", default=True).lower() == "true"
 # ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", default="localhost,127.0.0.1").split(",")
+ALLOWED_HOSTS = [
+    h.strip()
+    for h in os.getenv("ALLOWED_HOSTS", default="localhost,127.0.0.1,::1").split(",")
+    if h.strip()
+]
 
 # Application definition
 INSTALLED_APPS = [
@@ -28,6 +32,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "cloudinary_storage",
     # Your apps
     "accounts",
     "members",
@@ -202,8 +207,10 @@ FRONTEND_BASE_URL = os.getenv(
 # FRONTEND_BASE_URL and/or CORS_ALLOWED_ORIGINS (comma-separated) on Render/Vercel.
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
+    "http://localhost:3001",
     "http://localhost:8080",
     "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
     "http://127.0.0.1:8080",
 ]
 if FRONTEND_BASE_URL and FRONTEND_BASE_URL not in CORS_ALLOWED_ORIGINS:
@@ -214,6 +221,9 @@ for _raw in _cors_extra.split(","):
     _origin = _raw.strip().rstrip("/")
     if _origin and _origin not in CORS_ALLOWED_ORIGINS:
         CORS_ALLOWED_ORIGINS.append(_origin)
+
+# When DEBUG is on, reflect any Origin (LAN IP, alternate hostname). Do not enable in production.
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 # Cache Configuration
 CACHES = {
@@ -401,6 +411,17 @@ TWILIO_TEST_AUTH_TOKEN = os.getenv("TWILIO_TEST_AUTH_TOKEN")
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "")
+
+# Store Django FileField/ImageField uploads (e.g. church logo) on Cloudinary when creds are set.
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
 # File upload limits
 FILE_MAX_SIZE_MB = int(os.getenv("FILE_MAX_SIZE_MB", 20))
 FILE_ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]

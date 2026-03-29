@@ -12,17 +12,28 @@ from rest_framework.views import APIView
 from members.models import Member
 from members.serializers import MemberSerializer
 
-from ..models import (Department, DepartmentHead, Member, MemberDepartment,
-                      Program, ProgramBudgetItem)
-from ..serializers import (AssignDepartmentHeadSerializer,
-                           AssignMemberToDepartmentSerializer,
-                           DepartmentCreateSerializer,
-                           DepartmentHeadSerializer, DepartmentListSerializer,
-                           DepartmentSerializer,
-                           DepartmentStatisticsSerializer,
-                           DepartmentWithHeadCreateSerializer,
-                           MemberDepartmentSerializer,
-                           ProgramBudgetItemSerializer, ProgramListSerializer)
+from ..models import (
+    Department,
+    DepartmentHead,
+    Member,
+    MemberDepartment,
+    Program,
+    ProgramBudgetItem,
+)
+from ..serializers import (
+    AssignAssistantHeadSerializer,
+    AssignDepartmentHeadSerializer,
+    AssignMemberToDepartmentSerializer,
+    DepartmentCreateSerializer,
+    DepartmentHeadSerializer,
+    DepartmentListSerializer,
+    DepartmentSerializer,
+    DepartmentStatisticsSerializer,
+    DepartmentWithHeadCreateSerializer,
+    MemberDepartmentSerializer,
+    ProgramBudgetItemSerializer,
+    ProgramListSerializer,
+)
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -63,9 +74,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             member_id = serializer.validated_data["member_id"]
 
-            # Create or update department head
             department_head, created = DepartmentHead.objects.update_or_create(
-                department=department, defaults={"member_id": member_id}
+                department=department,
+                head_role=DepartmentHead.HeadRole.HEAD,
+                defaults={
+                    "member_id": member_id,
+                    "church_id": department.church_id,
+                },
             )
 
             return Response(
@@ -74,6 +89,54 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=["put"], url_path="assistant-head")
+    def set_assistant_head(self, request, pk=None):
+        """
+        Set, update, or clear the assistant head.
+
+        Body: { "member_id": "<uuid>" | null } — null removes the assistant head.
+        """
+        department = self.get_object()
+        serializer = AssignAssistantHeadSerializer(
+            data=request.data, context={"request": request}
+        )
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        member_id = serializer.validated_data["member_id"]
+
+        if member_id is None:
+            DepartmentHead.objects.filter(
+                department=department,
+                head_role=DepartmentHead.HeadRole.ASSISTANT,
+            ).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        if DepartmentHead.objects.filter(
+            department=department,
+            head_role=DepartmentHead.HeadRole.HEAD,
+            member_id=member_id,
+        ).exists():
+            return Response(
+                {"detail": "This member is already the department head."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        department_head, created = DepartmentHead.objects.update_or_create(
+            department=department,
+            head_role=DepartmentHead.HeadRole.ASSISTANT,
+            defaults={
+                "member_id": member_id,
+                "church_id": department.church_id,
+            },
+        )
+
+        return Response(
+            DepartmentHeadSerializer(department_head).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     @action(detail=False, methods=["get"], url_path="statistics")
     def statistics(self, request):
@@ -95,7 +158,12 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         total_members_in_departments = MemberDepartment.objects.filter(
             department__in=departments
         ).count()
-        departments_without_heads = departments.filter(heads__isnull=True).count()
+        dept_ids_with_primary_head = DepartmentHead.objects.filter(
+            head_role=DepartmentHead.HeadRole.HEAD
+        ).values_list("department_id", flat=True)
+        departments_without_heads = departments.exclude(
+            id__in=dept_ids_with_primary_head
+        ).count()
         total_programs = program_qs.count()
         upcoming_programs = program_qs.filter(start_date__gt=today).count()
         past_programs = program_qs.filter(end_date__lt=today).count()

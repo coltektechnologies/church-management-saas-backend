@@ -11,9 +11,15 @@ from django.utils.safestring import mark_safe
 from accounts.models import Church
 from members.models import Member, MemberLocation
 
-from .models import (Department, DepartmentActivity, DepartmentHead,
-                     MemberDepartment, Program, ProgramBudgetItem,
-                     ProgramDocument)
+from .models import (
+    Department,
+    DepartmentActivity,
+    DepartmentHead,
+    MemberDepartment,
+    Program,
+    ProgramBudgetItem,
+    ProgramDocument,
+)
 
 # ==========================================
 # INLINE ADMINS
@@ -31,13 +37,13 @@ class MemberDepartmentInline(admin.TabularInline):
 
 
 class DepartmentHeadInline(admin.TabularInline):
-    """Inline for department heads"""
+    """Inline for department head and assistant head"""
 
     model = DepartmentHead
     extra = 0
-    max_num = 1
+    max_num = 2
     raw_id_fields = ["member"]
-    fields = ["member", "assigned_at"]
+    fields = ["head_role", "member", "assigned_at"]
     readonly_fields = ["assigned_at"]
 
 
@@ -109,10 +115,11 @@ class DepartmentHeadForm(forms.ModelForm):
 
     class Meta:
         model = DepartmentHead
-        fields = ["church", "department", "member"]
+        fields = ["church", "department", "head_role", "member"]
         widgets = {
             "church": forms.Select(attrs={"id": "id_church"}),
             "department": forms.Select(attrs={"id": "id_department"}),
+            "head_role": forms.Select(attrs={"id": "id_head_role"}),
             "member": forms.Select(attrs={"id": "id_member"}),
         }
 
@@ -228,7 +235,11 @@ class DepartmentAdmin(admin.ModelAdmin):
     member_count.short_description = "Members"
 
     def head_name(self, obj):
-        head = obj.heads.select_related("member").first()
+        head = (
+            obj.heads.filter(head_role=DepartmentHead.HeadRole.HEAD)
+            .select_related("member")
+            .first()
+        )
         if head and hasattr(head, "member") and head.member:
             return head.member.full_name
         return "No head assigned"
@@ -417,8 +428,9 @@ class DepartmentActivityAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
         # Send notification if requested from the form
         if form.cleaned_data.get("send_notification"):
-            from departments.services.activity_notifications import \
-                send_activity_notifications
+            from departments.services.activity_notifications import (
+                send_activity_notifications,
+            )
 
             notify_to = form.cleaned_data.get("notify_to") or "department_members"
             member_ids = None
@@ -475,8 +487,11 @@ class DepartmentActivityAdmin(admin.ModelAdmin):
         from django.template.response import TemplateResponse
 
         from departments.services.activity_notifications import (
-            NOTIFY_TO_ALL_CHURCH, NOTIFY_TO_DEPARTMENT, NOTIFY_TO_SPECIFIC,
-            send_activity_notifications)
+            NOTIFY_TO_ALL_CHURCH,
+            NOTIFY_TO_DEPARTMENT,
+            NOTIFY_TO_SPECIFIC,
+            send_activity_notifications,
+        )
 
         activity = get_object_or_404(DepartmentActivity, pk=object_id)
         if not request.user.is_staff:
@@ -598,11 +613,13 @@ class DepartmentHeadAdmin(admin.ModelAdmin):
 
     form = DepartmentHeadForm
 
-    list_display = ["department", "member_name", "church", "assigned_at"]
-    list_filter = ["department", "church", "assigned_at"]
+    list_display = ["department", "head_role", "member_name", "church", "assigned_at"]
+    list_filter = ["head_role", "department", "church", "assigned_at"]
     search_fields = ["member__first_name", "member__last_name", "department__name"]
 
-    fieldsets = (("Assignment", {"fields": ("church", "department", "member")}),)
+    fieldsets = (
+        ("Assignment", {"fields": ("church", "department", "head_role", "member")}),
+    )
 
     class Media:
         css = {"all": ("departments/admin.css",)}
@@ -1025,7 +1042,9 @@ class ProgramAdmin(admin.ModelAdmin):
         """Return department head name, email, phone as JSON for admin auto-populate."""
         dept = get_object_or_404(Department, pk=dept_id)
         head = (
-            DepartmentHead.objects.filter(department=dept)
+            DepartmentHead.objects.filter(
+                department=dept, head_role=DepartmentHead.HeadRole.HEAD
+            )
             .select_related("member")
             .first()
         )

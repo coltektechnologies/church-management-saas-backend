@@ -141,7 +141,8 @@ urlpatterns = [
 # GET    /api/departments/{id}/members/             - Get department members
 # POST   /api/departments/{id}/assign_member/       - Assign member to department
 # DELETE /api/departments/{id}/members/{member_id}/  - Remove member from department
-# PUT    /api/departments/{id}/head/                - Assign department head
+# PUT    /api/departments/{id}/head/                - Assign department head (primary)
+# PUT    /api/departments/{id}/assistant-head/      - Assign assistant head (member_id null to clear)
 # GET    /api/departments/statistics/               - Get statistics
 #
 # Program Endpoints (nested under departments):

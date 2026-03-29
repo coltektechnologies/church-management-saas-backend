@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from django.utils import timezone
 from drf_yasg import openapi
@@ -8,10 +9,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.notification_utils import church_can_use_sms_email
 from members.member_serializers import MemberCreateSerializer
 from members.models import Member, MemberLocation
 from members.serializers import MemberLocationSerializer, MemberSerializer
-from members.tasks import deliver_member_credentials_task
+from members.tasks import run_member_credentials_delivery
 
 logger = logging.getLogger(__name__)
 
@@ -238,7 +240,7 @@ class MemberCreateView(APIView):
                 )
                 response_data["password"] = password
 
-                # Queue credential delivery to Celery so SMTP/SMS cannot block the web worker.
+                # Deliver credentials on a daemon thread (no Celery worker required).
                 send_email = serializer.validated_data.get(
                     "send_credentials_via_email", False
                 )
@@ -252,25 +254,34 @@ class MemberCreateView(APIView):
                     member_phone = getattr(
                         getattr(member, "location", None), "phone_primary", None
                     )
-                    try:
-                        deliver_member_credentials_task.delay(
-                            str(member.id),
-                            password,
-                            send_email,
-                            send_sms,
-                            member_email,
-                            member_phone,
-                        )
-                        response_data["credentials_delivery_queued"] = True
-                    except Exception:
-                        logger.exception(
-                            "Failed to queue member credential delivery "
-                            "(check CELERY_BROKER_URL and Celery worker)"
-                        )
+                    login_username = getattr(
+                        serializer, "generated_username", None
+                    ) or serializer.validated_data.get("email")
+                    church = getattr(request.user, "church", None)
+                    if not church_can_use_sms_email(church, allow_initial_admin=False):
                         response_data["credentials_delivery_queued"] = False
-                        response_data["credentials_delivery_error"] = (
-                            "Could not queue email/SMS delivery. "
-                            "Ensure Redis and a Celery worker are running."
+                        response_data["credentials_delivery_skipped_reason"] = (
+                            "Outbound email and SMS are disabled for FREE-plan churches. "
+                            "Upgrade the church plan or use TRIAL/BASIC+ to send credentials."
+                        )
+                    else:
+
+                        def _deliver():
+                            run_member_credentials_delivery(
+                                str(member.id),
+                                password,
+                                send_email,
+                                send_sms,
+                                member_email,
+                                member_phone,
+                                login_username=login_username,
+                            )
+
+                        threading.Thread(target=_deliver, daemon=True).start()
+                        response_data["credentials_delivery_queued"] = True
+                        response_data["credentials_delivery_note"] = (
+                            "Delivery runs in the background; check logs if email/SMS "
+                            "does not arrive (SMTP, mNotify, and DEFAULT_FROM_EMAIL must be configured)."
                         )
 
             return Response(response_data, status=status.HTTP_201_CREATED)

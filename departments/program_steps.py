@@ -10,8 +10,13 @@ from rest_framework import serializers
 
 from members.models import Member, MemberLocation
 
-from .models import (Department, DepartmentHead, Program, ProgramBudgetItem,
-                     ProgramDocument)
+from .models import (
+    Department,
+    DepartmentHead,
+    Program,
+    ProgramBudgetItem,
+    ProgramDocument,
+)
 
 # ============================================
 # STEP 1: Basic Information
@@ -48,28 +53,28 @@ class ProgramStep1Serializer(serializers.Serializer):
         department_id = attrs["department_id"]
         department = Department.objects.get(id=department_id)
 
-        # Check if user is head of selected department
-        head = (
-            DepartmentHead.objects.filter(department=department, member__church=church)
+        primary_head = (
+            DepartmentHead.objects.filter(
+                department=department,
+                member__church=church,
+                head_role=DepartmentHead.HeadRole.HEAD,
+            )
             .select_related("member")
             .first()
         )
 
-        is_head = False
-        if head:
-            member = head.member
-            # User is head if they are the system user for this member
-            if member.system_user_id and str(member.system_user_id) == str(
-                request.user.id
-            ):
-                is_head = True
-            # Staff/platform admin can submit on behalf of any department
-            elif getattr(request.user, "is_staff", False):
-                is_head = True
+        is_head = (
+            getattr(request.user, "is_staff", False)
+            or DepartmentHead.objects.filter(
+                department=department,
+                member__church=church,
+                member__system_user_id=request.user.id,
+            ).exists()
+        )
 
         attrs["_department"] = department
         attrs["_is_department_head"] = is_head
-        attrs["_head"] = head
+        attrs["_head"] = primary_head
         return attrs
 
 

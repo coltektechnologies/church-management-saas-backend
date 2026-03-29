@@ -1,9 +1,13 @@
+import logging
+
 from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 
 from accounts.notification_utils import church_can_use_sms_email
 from notifications.services import SMSService
+
+logger = logging.getLogger(__name__)
 
 
 def send_credentials_email(recipient, email, password, allow_initial_admin=False):
@@ -13,6 +17,12 @@ def send_credentials_email(recipient, email, password, allow_initial_admin=False
     """
     church = getattr(recipient, "church", None)
     if not church_can_use_sms_email(church, allow_initial_admin=allow_initial_admin):
+        logger.warning(
+            "send_credentials_email skipped: church plan disallows outbound email/SMS "
+            "(church_id=%s, plan=%s)",
+            getattr(church, "id", None),
+            getattr(church, "subscription_plan", None),
+        )
         return
     subject = f"Your {church.name} Login Credentials"
     context = {
@@ -38,14 +48,26 @@ def send_credentials_email(recipient, email, password, allow_initial_admin=False
 
 
 def send_credentials_sms(
-    recipient, phone_number, password=None, email=None, allow_initial_admin=False
+    recipient,
+    phone_number,
+    password=None,
+    email=None,
+    allow_initial_admin=False,
+    login_username=None,
 ):
     """Send login credentials via SMS using mNotify.
 
     allow_initial_admin: If True, allow for FREE plan when sending to first admin during church setup.
+    login_username: Portal login username (Member.system User); Member.username is often empty.
     """
     church = getattr(recipient, "church", None)
     if not church_can_use_sms_email(church, allow_initial_admin=allow_initial_admin):
+        logger.warning(
+            "send_credentials_sms skipped: church plan disallows outbound SMS "
+            "(church_id=%s, plan=%s)",
+            getattr(church, "id", None),
+            getattr(church, "subscription_plan", None),
+        )
         return {"success": False, "error": "SMS/email not available for FREE plan"}
     member = recipient
     try:
@@ -65,13 +87,16 @@ def send_credentials_sms(
             if getattr(member, "church", None)
             else ""
         )
+        display_username = (
+            login_username or getattr(member, "username", None) or email or "see email"
+        )
         message = (
             f"Hello {member.first_name},\n"
             f"Your login for {church_name}"
             + (f" (subdomain: {church_sub})" if church_sub else "")
             + ":\n"
             f"Email: {email or 'Use your registered email'}\n"
-            f"Username: {member.username}\n"
+            f"Username: {display_username}\n"
         )
 
         if password:
@@ -81,11 +106,6 @@ def send_credentials_sms(
 
         # Send the SMS
         result = sms_service.send_sms(to_phone=phone_number, message=message)
-
-        # Log the result
-        import logging
-
-        logger = logging.getLogger(__name__)
 
         if result.get("success"):
             logger.info(f"SMS sent successfully to {phone_number}")
@@ -101,10 +121,7 @@ def send_credentials_sms(
         return result
 
     except Exception as e:
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.error(f"Error sending SMS to {phone_number}: {str(e)}")
+        logger.error("Error sending SMS to %s: %s", phone_number, str(e))
         return {"success": False, "error": str(e)}
 
 

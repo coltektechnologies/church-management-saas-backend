@@ -13,13 +13,18 @@ from members.models import Member
 from members.serializers import MemberSerializer
 
 from .models import Department, DepartmentHead, MemberDepartment, Program
-from .serializers import (AssignDepartmentHeadSerializer,
-                          AssignMemberToDepartmentSerializer,
-                          DepartmentCreateSerializer, DepartmentHeadSerializer,
-                          DepartmentListSerializer, DepartmentSerializer,
-                          DepartmentStatisticsSerializer,
-                          DepartmentWithHeadCreateSerializer,
-                          MemberDepartmentSerializer, ProgramListSerializer)
+from .serializers import (
+    AssignDepartmentHeadSerializer,
+    AssignMemberToDepartmentSerializer,
+    DepartmentCreateSerializer,
+    DepartmentHeadSerializer,
+    DepartmentListSerializer,
+    DepartmentSerializer,
+    DepartmentStatisticsSerializer,
+    DepartmentWithHeadCreateSerializer,
+    MemberDepartmentSerializer,
+    ProgramListSerializer,
+)
 from .views import ProgramViewSet
 
 
@@ -214,12 +219,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
         member = Member.objects.get(id=input_serializer.validated_data["member_id"])
 
-        # Remove existing head
-        DepartmentHead.objects.filter(department=department).delete()
+        DepartmentHead.objects.filter(
+            department=department, head_role=DepartmentHead.HeadRole.HEAD
+        ).delete()
 
-        # Assign new head
         head = DepartmentHead.objects.create(
-            department=department, member=member, church=department.church
+            department=department,
+            member=member,
+            church=department.church,
+            head_role=DepartmentHead.HeadRole.HEAD,
         )
 
         serializer = DepartmentHeadSerializer(head, context={"request": request})
@@ -309,7 +317,11 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             "total_members_in_departments": MemberDepartment.objects.filter(
                 department__in=queryset
             ).count(),
-            "departments_without_heads": queryset.filter(heads__isnull=True).count(),
+            "departments_without_heads": queryset.exclude(
+                id__in=DepartmentHead.objects.filter(
+                    head_role=DepartmentHead.HeadRole.HEAD
+                ).values_list("department_id", flat=True)
+            ).count(),
             "total_programs": Program.objects.filter(department__in=queryset).count(),
             "upcoming_programs": Program.objects.filter(
                 department__in=queryset,

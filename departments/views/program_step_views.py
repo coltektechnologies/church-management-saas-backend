@@ -15,11 +15,20 @@ from rest_framework.views import APIView
 
 from members.models import MemberLocation
 
-from ..models import (Department, DepartmentHead, Program, ProgramBudgetItem,
-                      ProgramDocument)
-from ..program_steps import (ProgramDocumentSerializer,
-                             ProgramReviewSerializer, ProgramStep1Serializer,
-                             ProgramStep2Serializer, ProgramStep3Serializer)
+from ..models import (
+    Department,
+    DepartmentHead,
+    Program,
+    ProgramBudgetItem,
+    ProgramDocument,
+)
+from ..program_steps import (
+    ProgramDocumentSerializer,
+    ProgramReviewSerializer,
+    ProgramStep1Serializer,
+    ProgramStep2Serializer,
+    ProgramStep3Serializer,
+)
 
 
 def _get_department_head_info(head):
@@ -259,16 +268,22 @@ class DepartmentListForProgramAPIView(APIView):
 
         result = []
         for dept in departments:
-            head = (
-                DepartmentHead.objects.filter(department=dept, member__church=church)
+            primary = (
+                DepartmentHead.objects.filter(
+                    department=dept,
+                    member__church=church,
+                    head_role=DepartmentHead.HeadRole.HEAD,
+                )
                 .select_related("member")
                 .first()
             )
 
-            head_name, head_email, head_phone = _get_department_head_info(head)
-            is_current_user_head = False
-            if head and head.member.system_user_id:
-                is_current_user_head = str(head.member.system_user_id) == user_id
+            head_name, head_email, head_phone = _get_department_head_info(primary)
+            is_current_user_head = DepartmentHead.objects.filter(
+                department=dept,
+                member__church=church,
+                member__system_user_id=request.user.id,
+            ).exists()
 
             elder_name = None
             if dept.elder_in_charge:

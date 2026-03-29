@@ -7,16 +7,16 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task
-def deliver_member_credentials_task(
+def run_member_credentials_delivery(
     member_id: str,
     password: str,
     send_email: bool,
     send_sms: bool,
     member_email: str | None,
     member_phone: str | None,
+    login_username: str | None = None,
 ):
-    """Send new-member login credentials via email and/or SMS (runs in a Celery worker)."""
+    """Send new-member login credentials via email and/or SMS (thread, worker, or eager Celery)."""
     from members.models import Member
     from members.services.credential_service import (
         send_credentials_email,
@@ -44,6 +44,7 @@ def deliver_member_credentials_task(
                 password,
                 member_email,
                 allow_initial_admin=False,
+                login_username=login_username,
             )
             if not sms_result.get("success"):
                 logger.error(
@@ -52,6 +53,28 @@ def deliver_member_credentials_task(
                     sms_result.get("error", sms_result),
                 )
     except Member.DoesNotExist:
-        logger.error("deliver_member_credentials_task: Member %s not found", member_id)
+        logger.error("run_member_credentials_delivery: Member %s not found", member_id)
     except Exception:
         logger.exception("Member credentials delivery failed (member_id=%s)", member_id)
+
+
+@shared_task
+def deliver_member_credentials_task(
+    member_id: str,
+    password: str,
+    send_email: bool,
+    send_sms: bool,
+    member_email: str | None,
+    member_phone: str | None,
+    login_username: str | None = None,
+):
+    """Celery entrypoint — same behavior as run_member_credentials_delivery."""
+    run_member_credentials_delivery(
+        member_id,
+        password,
+        send_email,
+        send_sms,
+        member_email,
+        member_phone,
+        login_username=login_username,
+    )

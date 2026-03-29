@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -7,8 +8,14 @@ from accounts.models.base_models import AuditLog
 from members.models import Member
 from members.serializers import MemberSerializer
 
-from .models import (Department, DepartmentActivity, DepartmentHead,
-                     MemberDepartment, Program, ProgramBudgetItem)
+from .models import (
+    Department,
+    DepartmentActivity,
+    DepartmentHead,
+    MemberDepartment,
+    Program,
+    ProgramBudgetItem,
+)
 
 # ==========================================
 # DEPARTMENT SERIALIZERS
@@ -64,7 +71,9 @@ class DepartmentListSerializer(serializers.ModelSerializer):
         )
 
     def get_head_name(self, obj):
-        head = DepartmentHead.objects.filter(department=obj).first()
+        head = DepartmentHead.objects.filter(
+            department=obj, head_role=DepartmentHead.HeadRole.HEAD
+        ).first()
         if head:
             return head.member.full_name
         return None
@@ -114,12 +123,24 @@ class DepartmentSerializer(serializers.ModelSerializer):
         return MemberDepartment.objects.filter(department=obj).count()
 
     def get_heads(self, obj):
-        heads = DepartmentHead.objects.filter(department=obj).select_related("member")
+        heads = (
+            DepartmentHead.objects.filter(department=obj)
+            .select_related("member")
+            .annotate(
+                _role_sort=Case(
+                    When(head_role=DepartmentHead.HeadRole.HEAD, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("_role_sort", "id")
+        )
         return [
             {
                 "id": head.member.id,
                 "name": head.member.full_name,
                 "assigned_at": head.assigned_at,
+                "head_role": head.head_role,
             }
             for head in heads
         ]
@@ -246,13 +267,15 @@ class DepartmentWithHeadCreateSerializer(serializers.ModelSerializer):
         # Use get_or_create to prevent the duplicate key IntegrityError if the
         # same member+department combo already exists (e.g. retried requests).
         if head_member:
-            # Remove any existing head first (one head per department policy)
-            DepartmentHead.objects.filter(department=department).exclude(
-                member=head_member
-            ).delete()
+            DepartmentHead.objects.filter(
+                department=department, head_role=DepartmentHead.HeadRole.HEAD
+            ).exclude(member=head_member).delete()
 
             DepartmentHead.objects.get_or_create(
-                department=department, member=head_member, defaults={"church": church}
+                department=department,
+                head_role=DepartmentHead.HeadRole.HEAD,
+                member=head_member,
+                defaults={"church": church},
             )
 
         return department
@@ -378,6 +401,7 @@ class DepartmentHeadSerializer(serializers.ModelSerializer):
             "member_name",
             "department",
             "department_name",
+            "head_role",
             "assigned_at",
         ]
         read_only_fields = ["id", "assigned_at"]
@@ -409,6 +433,25 @@ class AssignDepartmentHeadSerializer(serializers.Serializer):
     member_id = serializers.UUIDField()
 
     def validate_member_id(self, value):
+        request = self.context.get("request")
+        church = getattr(request, "current_church", None) or request.user.church
+
+        try:
+            Member.objects.get(id=value, church=church)
+        except Member.DoesNotExist:
+            raise serializers.ValidationError("Member not found in your church")
+
+        return value
+
+
+class AssignAssistantHeadSerializer(serializers.Serializer):
+    """Assign or clear assistant department head (member_id null removes)."""
+
+    member_id = serializers.UUIDField(required=True, allow_null=True)
+
+    def validate_member_id(self, value):
+        if value is None:
+            return value
         request = self.context.get("request")
         church = getattr(request, "current_church", None) or request.user.church
 

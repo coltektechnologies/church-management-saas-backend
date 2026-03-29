@@ -77,7 +77,11 @@ class MemberDepartment(models.Model):
 
 
 class DepartmentHead(models.Model):
-    """Department Head assignment - Phase 1B"""
+    """Department head or assistant head (one row per role per department)."""
+
+    class HeadRole(models.TextChoices):
+        HEAD = "HEAD", _("Department head")
+        ASSISTANT = "ASSISTANT", _("Assistant head")
 
     department = models.ForeignKey(
         Department,
@@ -93,11 +97,17 @@ class DepartmentHead(models.Model):
         verbose_name=_("Church"),
         help_text=_("The church this department head belongs to"),
     )
+    head_role = models.CharField(
+        max_length=20,
+        choices=HeadRole.choices,
+        default=HeadRole.HEAD,
+        db_index=True,
+    )
     assigned_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "department_heads"
-        unique_together = ("department", "member")
+        unique_together = ("department", "head_role")
         verbose_name = _("Department Head")
         verbose_name_plural = _("Department Heads")
 
@@ -144,7 +154,8 @@ class DepartmentHead(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.member.full_name} - {self.department.name}"
+        label = self.get_head_role_display()
+        return f"{self.member.full_name} ({label}) — {self.department.name}"
 
 
 class ProgramBudgetItem(models.Model):

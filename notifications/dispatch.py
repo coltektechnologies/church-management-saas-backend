@@ -99,16 +99,27 @@ class SMSService:
         return sms_log
 
     @staticmethod
+    def _resolve_sms_gateway():
+        """Prefer explicit SMS_GATEWAY; otherwise use mNotify when an API key is set."""
+        gateway = (getattr(settings, "SMS_GATEWAY", None) or "").strip().lower()
+        if gateway:
+            return gateway
+        if getattr(settings, "MNOTIFY_API_KEY", None):
+            return "mnotify"
+        return "africastalking"
+
+    @staticmethod
     def _send_via_gateway(sms_log):
         """Send SMS via configured gateway"""
         try:
-            # Check which gateway is configured
-            gateway = getattr(settings, "SMS_GATEWAY", "africastalking")
+            gateway = SMSService._resolve_sms_gateway()
 
             if gateway == "africastalking":
                 return SMSService._send_via_africastalking(sms_log)
             elif gateway == "twilio":
                 return SMSService._send_via_twilio(sms_log)
+            elif gateway == "mnotify":
+                return SMSService._send_via_mnotify(sms_log)
             else:
                 # Fallback: mark as sent for testing
                 sms_log.status = "SENT"
@@ -124,6 +135,39 @@ class SMSService:
             sms_log.error_message = str(e)
             sms_log.save()
             logger.error(f"SMS Failed: {e}")
+            return sms_log
+
+    @staticmethod
+    def _send_via_mnotify(sms_log):
+        """Send via mNotify (Ghana / regional SMS)."""
+        try:
+            from notifications.services.sms_service import MNotifySMS
+
+            client = MNotifySMS()
+            result = client.send_quick_sms(
+                recipients=[sms_log.phone_number], message=sms_log.message
+            )
+            err = (
+                result.get("status") == "error" or result.get("code") == "request_error"
+            )
+            if err:
+                sms_log.status = "FAILED"
+                sms_log.error_message = str(
+                    result.get("message") or result.get("error") or result
+                )[:500]
+            else:
+                sms_log.status = "SENT"
+                sms_log.sent_at = timezone.now()
+                mid = result.get("id") or result.get("message_id")
+                if mid:
+                    sms_log.gateway_message_id = str(mid)[:100]
+            sms_log.save()
+            return sms_log
+        except Exception as e:
+            sms_log.status = "FAILED"
+            sms_log.error_message = str(e)[:500]
+            sms_log.save()
+            logger.error("mNotify SMS error: %s", e)
             return sms_log
 
     @staticmethod

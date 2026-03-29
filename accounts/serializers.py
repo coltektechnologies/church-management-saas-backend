@@ -945,13 +945,16 @@ class ChurchSerializer(serializers.ModelSerializer):
         ]
 
     def get_logo_url(self, obj):
-        """Get full URL for logo"""
-        if obj.logo:
-            request = self.context.get("request")
-            if request:
-                return request.build_absolute_uri(obj.logo.url)
-            return obj.logo.url
-        return None
+        """Get full URL for logo (Cloudinary and other storages often return absolute URLs)."""
+        if not obj.logo:
+            return None
+        url = obj.logo.url
+        if url.startswith("http://") or url.startswith("https://"):
+            return url
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(url)
+        return url
 
     def get_user_count(self, obj):
         """Get active user count"""
