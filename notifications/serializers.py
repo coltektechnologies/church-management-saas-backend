@@ -1,8 +1,14 @@
 from rest_framework import serializers
 
-from .models import (EmailLog, Notification, NotificationBatch,
-                     NotificationPreference, NotificationTemplate,
-                     RecurringNotificationSchedule, SMSLog)
+from .models import (
+    EmailLog,
+    Notification,
+    NotificationBatch,
+    NotificationPreference,
+    NotificationTemplate,
+    RecurringNotificationSchedule,
+    SMSLog,
+)
 
 # =====================================================
 # NOTIFICATION SERIALIZERS
@@ -80,8 +86,13 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
         user = User.objects.get(id=user_id) if user_id else None
         member = Member.objects.get(id=member_id) if member_id else None
 
+        actor = request.user if request and request.user.is_authenticated else None
         return NotificationService.create_notification(
-            church=church, user=user, member=member, **validated_data
+            church=church,
+            user=user,
+            member=member,
+            created_by=actor,
+            **validated_data,
         )
 
 

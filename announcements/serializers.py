@@ -1,7 +1,11 @@
 from rest_framework import serializers
 
-from .models import (Announcement, AnnouncementAttachment,
-                     AnnouncementCategory, AnnouncementTemplate)
+from .models import (
+    Announcement,
+    AnnouncementAttachment,
+    AnnouncementCategory,
+    AnnouncementTemplate,
+)
 
 
 class AnnouncementCategorySerializer(serializers.ModelSerializer):
@@ -74,6 +78,7 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "title",
+            "content",
             "status",
             "status_display",
             "priority",

@@ -307,6 +307,16 @@ CELERY_TASK_TIME_LIMIT = 30 * 60  # 30 minutes
 # On Render: set CELERY_TASK_ALWAYS_EAGER=True to run tasks synchronously in-process (no worker).
 CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
 
+# Bulk notification batches: run process_batch in the HTTP worker (no django-rq worker needed).
+# Default True in DEBUG so SMS/email/in-app batch sends work locally without Redis/RQ.
+NOTIFICATION_BATCH_PROCESS_INLINE = (
+    os.environ.get(
+        "NOTIFICATION_BATCH_PROCESS_INLINE",
+        "True" if DEBUG else "False",
+    )
+    == "True"
+)
+
 # Twilio Configuration
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")

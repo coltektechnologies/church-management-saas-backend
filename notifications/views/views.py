@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -11,21 +12,35 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from members.models import Member
-from notifications.models import (EmailLog, Notification, NotificationBatch,
-                                  NotificationPreference, NotificationTemplate,
-                                  RecurringNotificationSchedule, SMSLog)
-from notifications.serializers import (EmailLogSerializer,
-                                       NotificationBatchSerializer,
-                                       NotificationCreateSerializer,
-                                       NotificationPreferenceSerializer,
-                                       NotificationSerializer,
-                                       NotificationTemplateSerializer,
-                                       RecurringNotificationScheduleSerializer,
-                                       SendBulkNotificationSerializer,
-                                       SendEmailSerializer, SendSMSSerializer,
-                                       SMSLogSerializer)
-from notifications.services import (EmailService, NotificationService,
-                                    SMSService, TemplateService)
+from notifications.dispatch import notification_inbox_queryset
+from notifications.models import (
+    EmailLog,
+    Notification,
+    NotificationBatch,
+    NotificationPreference,
+    NotificationTemplate,
+    RecurringNotificationSchedule,
+    SMSLog,
+)
+from notifications.serializers import (
+    EmailLogSerializer,
+    NotificationBatchSerializer,
+    NotificationCreateSerializer,
+    NotificationPreferenceSerializer,
+    NotificationSerializer,
+    NotificationTemplateSerializer,
+    RecurringNotificationScheduleSerializer,
+    SendBulkNotificationSerializer,
+    SendEmailSerializer,
+    SendSMSSerializer,
+    SMSLogSerializer,
+)
+from notifications.services import (
+    EmailService,
+    NotificationService,
+    SMSService,
+    TemplateService,
+)
 
 # ==========================================
 # NOTIFICATION VIEWSET
@@ -58,7 +73,16 @@ class NotificationViewSet(viewsets.ModelViewSet):
             return Notification.objects.none()
 
         user = self.request.user
-        return Notification.objects.filter(user=user).select_related("church")
+        mailbox = (self.request.query_params.get("mailbox") or "inbox").lower()
+        if mailbox == "sent":
+            qs = Notification.objects.filter(created_by=user).select_related(
+                "church", "member", "user"
+            )
+            church_id = getattr(user, "church_id", None)
+            if church_id:
+                qs = qs.filter(church_id=church_id)
+            return qs
+        return notification_inbox_queryset(user).select_related("church", "member")
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -68,6 +92,12 @@ class NotificationViewSet(viewsets.ModelViewSet):
     @swagger_auto_schema(
         operation_description="Get list of notifications for current user",
         manual_parameters=[
+            openapi.Parameter(
+                "mailbox",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                description="inbox (default) = notifications to you; sent = notifications you created",
+            ),
             openapi.Parameter("is_read", openapi.IN_QUERY, type=openapi.TYPE_BOOLEAN),
             openapi.Parameter("priority", openapi.IN_QUERY, type=openapi.TYPE_STRING),
             openapi.Parameter("category", openapi.IN_QUERY, type=openapi.TYPE_STRING),
@@ -95,6 +125,49 @@ class NotificationViewSet(viewsets.ModelViewSet):
             notification, context={"request": request}
         )
         return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["get"], url_path="outbox")
+    @swagger_auto_schema(
+        operation_description=(
+            "Notifications created by the current user (Sent / outbox). "
+            "Prefer this over ?mailbox=sent on the list endpoint."
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                "page",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description="Page number (paginated responses)",
+            ),
+            openapi.Parameter(
+                "page_size",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description="Page size when pagination allows override",
+            ),
+        ],
+        responses={200: NotificationSerializer(many=True)},
+        tags=["Notifications"],
+    )
+    def outbox(self, request):
+        """List notifications composed by the current user (church-scoped)."""
+        if getattr(self, "swagger_fake_view", False):
+            return Response([])
+        user = request.user
+        qs = (
+            Notification.objects.filter(created_by=user)
+            .select_related("church", "member", "user")
+            .order_by("-created_at")
+        )
+        church_id = getattr(user, "church_id", None)
+        if church_id:
+            qs = qs.filter(church_id=church_id)
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=["put"])
     @swagger_auto_schema(
@@ -166,7 +239,9 @@ class NotificationViewSet(viewsets.ModelViewSet):
     )
     def clear_read(self, request):
         """Delete all read notifications"""
-        count = Notification.objects.filter(user=request.user, is_read=True).delete()[0]
+        count = (
+            notification_inbox_queryset(request.user).filter(is_read=True).delete()[0]
+        )
 
         return Response(
             {"message": f"{count} read notifications deleted"},
@@ -500,10 +575,17 @@ class BulkNotificationView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        # Create notification batch
+        title = (serializer.validated_data.get("title") or "").strip()
+        batch_name = (
+            title[:200]
+            if title
+            else f"Bulk notification — {timezone.now():%Y-%m-%d %H:%M}"
+        )
+
+        # Create notification batch (save() queues RQ or runs inline per NOTIFICATION_BATCH_PROCESS_INLINE)
         batch = NotificationBatch.objects.create(
             church=church,
-            name=f"Bulk notification - {timezone.now().strftime('%Y-%m-%d %H:%M')}",
+            name=batch_name,
             message=serializer.validated_data["message"],
             target_all_members=serializer.validated_data["target"] == "all_members",
             target_departments=serializer.validated_data.get("department_ids"),
@@ -514,16 +596,15 @@ class BulkNotificationView(APIView):
             created_by=request.user,
         )
 
-        # Queue batch for processing (using Celery)
-        from .tasks import process_notification_batch
-
-        process_notification_batch.delay(str(batch.id))
-
         return Response(
             {
                 "message": "Notification batch created successfully",
                 "batch_id": str(batch.id),
-                "status": "queued",
+                "status": (
+                    "processed"
+                    if settings.NOTIFICATION_BATCH_PROCESS_INLINE
+                    else "queued"
+                ),
             },
             status=status.HTTP_201_CREATED,
         )

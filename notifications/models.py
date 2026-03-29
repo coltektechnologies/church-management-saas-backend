@@ -109,6 +109,16 @@ class Notification(models.Model):
         blank=True,
     )
 
+    # Staff user who composed this notification (in-app “sent” folder); null for system/batch-only rows
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        related_name="notifications_created",
+        db_column="created_by_id",
+        null=True,
+        blank=True,
+    )
+
     # Content
     title = models.CharField(max_length=200)
     message = models.TextField()
@@ -655,19 +665,24 @@ class NotificationBatch(models.Model):
             self.process()
 
     def process(self):
-        """Process this notification batch asynchronously"""
-        from django_rq import enqueue
+        """Queue batch for RQ worker, or run synchronously when NOTIFICATION_BATCH_PROCESS_INLINE is True."""
+        from django.conf import settings
 
-        from notifications.management.commands.process_notification_batches import \
-            process_batch
+        from notifications.management.commands.process_notification_batches import (
+            process_batch,
+        )
 
         # Update status to PROCESSING
         self.status = "PROCESSING"
         self.started_at = timezone.now()
         self.save(update_fields=["status", "started_at", "updated_at"])
 
-        # Enqueue the processing task
-        enqueue(process_batch, self.id)
+        if getattr(settings, "NOTIFICATION_BATCH_PROCESS_INLINE", False):
+            process_batch(self.id)
+        else:
+            from django_rq import enqueue
+
+            enqueue(process_batch, self.id)
 
 
 class RecurringNotificationSchedule(models.Model):

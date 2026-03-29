@@ -7,8 +7,13 @@ from django.utils import timezone
 from accounts.models import Church, User
 from members.models import Member
 
-from ..models import (EmailLog, Notification, NotificationBatch,
-                      NotificationTemplate, SMSLog)
+from ..models import (
+    EmailLog,
+    Notification,
+    NotificationBatch,
+    NotificationTemplate,
+    SMSLog,
+)
 from .mnotify_service import MNotifyService
 from .twilio_service import TwilioService
 
@@ -395,6 +400,7 @@ class NotificationManager:
             church=church,
             user=user,
             member=recipient.get("member"),
+            created_by=kwargs.get("created_by"),
             title=title,
             message=message,
             priority=kwargs.get("priority", "MEDIUM"),

@@ -88,7 +88,6 @@ urlpatterns = [
     path("api/admin/", include("backup.urls")),
     path("api/activity/", include("core.urls_api")),
     path("", include("core.urls")),
-    path("api/notifications/", include("notifications.urls")),
 ]
 
 # Serve media files in development

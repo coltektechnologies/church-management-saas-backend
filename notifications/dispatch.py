@@ -1,6 +1,7 @@
 import logging
 
 from django.conf import settings
+from django.db.models import Q
 from django.utils import timezone
 
 from accounts.notification_utils import church_can_use_sms_email
@@ -8,6 +9,22 @@ from accounts.notification_utils import church_can_use_sms_email
 from .models import EmailLog, Notification, NotificationTemplate, SMSLog
 
 logger = logging.getLogger(__name__)
+
+
+def notification_inbox_q(user):
+    """
+    Rows the logged-in user should see in GET …/notifications/notifications/.
+    Matches direct User recipients or Member rows linked to this account via system_user_id.
+    """
+    return Q(user=user) | Q(member__system_user_id=user.id)
+
+
+def notification_inbox_queryset(user):
+    qs = Notification.objects.filter(notification_inbox_q(user))
+    church_id = getattr(user, "church_id", None)
+    if church_id:
+        qs = qs.filter(church_id=church_id)
+    return qs
 
 
 class NotificationService:
@@ -18,10 +35,12 @@ class NotificationService:
         church, user=None, member=None, title="", message="", **kwargs
     ):
         """Create in-app notification"""
+        created_by = kwargs.pop("created_by", None)
         notification = Notification.objects.create(
             church=church,
             user=user,
             member=member,
+            created_by=created_by,
             title=title,
             message=message,
             priority=kwargs.get("priority", "MEDIUM"),
@@ -43,7 +62,7 @@ class NotificationService:
     def mark_as_read(notification_id, user):
         """Mark notification as read"""
         try:
-            notification = Notification.objects.get(id=notification_id, user=user)
+            notification = notification_inbox_queryset(user).get(id=notification_id)
             notification.is_read = True
             notification.read_at = timezone.now()
             notification.status = "READ"
@@ -55,17 +74,21 @@ class NotificationService:
     @staticmethod
     def mark_all_read(user):
         """Mark all notifications as read for a user"""
-        count = Notification.objects.filter(user=user, is_read=False).update(
-            is_read=True, read_at=timezone.now(), status="READ"
+        count = (
+            notification_inbox_queryset(user)
+            .filter(is_read=False)
+            .update(is_read=True, read_at=timezone.now(), status="READ")
         )
         return count
 
     @staticmethod
     def get_unread_count(user):
         """Get unread notification count"""
-        return Notification.objects.filter(
-            user=user, is_read=False, status="SENT"
-        ).count()
+        return (
+            notification_inbox_queryset(user)
+            .filter(is_read=False, status="SENT")
+            .count()
+        )
 
 
 class SMSService:
