@@ -183,6 +183,9 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    # We use ?format=pdf|xlsx|csv for report exports. Disable DRF format override
+    # so these values are passed to views instead of being treated as renderer formats.
+    "URL_FORMAT_OVERRIDE": None,
 }
 
 # JWT Settings

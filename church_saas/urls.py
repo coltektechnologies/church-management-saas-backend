@@ -80,9 +80,10 @@ urlpatterns = [
     path("api/announcements/", include("announcements.urls")),
     path("api/treasury/", include("treasury.urls")),
     path("api/notifications/", include("notifications.urls")),
+    # Keep reports above the broad "api/" include to avoid route shadowing.
+    path("api/reports/", include("reports.urls")),
     # Departments mounted at api/ so router's 'departments/' gives api/departments/... (not api/departments/departments/...)
     path("api/", include("departments.urls")),
-    path("api/reports/", include("reports.urls")),
     path("api/analytics/", include("analytics.urls")),
     path("api/files/", include("files.urls")),
     path("api/admin/", include("backup.urls")),
