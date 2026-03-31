@@ -7,15 +7,23 @@ from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import (Announcement, AnnouncementAttachment,
-                     AnnouncementCategory, AnnouncementTemplate)
-from .serializers import (AnnouncementAttachmentSerializer,
-                          AnnouncementCategorySerializer,
-                          AnnouncementCreateSerializer,
-                          AnnouncementDetailSerializer,
-                          AnnouncementListSerializer,
-                          AnnouncementTemplateSerializer,
-                          AnnouncementUpdateStatusSerializer)
+from accounts.permissions import has_permission as has_custom_permission
+
+from .models import (
+    Announcement,
+    AnnouncementAttachment,
+    AnnouncementCategory,
+    AnnouncementTemplate,
+)
+from .serializers import (
+    AnnouncementAttachmentSerializer,
+    AnnouncementCategorySerializer,
+    AnnouncementCreateSerializer,
+    AnnouncementDetailSerializer,
+    AnnouncementListSerializer,
+    AnnouncementTemplateSerializer,
+    AnnouncementUpdateStatusSerializer,
+)
 
 
 class AnnouncementCategoryViewSet(viewsets.ModelViewSet):
@@ -175,6 +183,14 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         else:
             raise serializers.ValidationError("User is not associated with any church.")
 
+    def _can_approve_announcement(self, request) -> bool:
+        # Keep staff/superuser behavior, while enforcing role permission for non-staff users.
+        return bool(
+            request.user.is_staff
+            or request.user.is_superuser
+            or has_custom_permission(request.user, "secretariat.approve_announcement")
+        )
+
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
         """Submit an announcement for review"""
@@ -193,6 +209,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
         """Approve an announcement"""
+        if not self._can_approve_announcement(request):
+            return Response(
+                {"error": "You do not have permission to approve announcements."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         announcement = self.get_object()
         if announcement.status != "PENDING_REVIEW":
             return Response(
@@ -210,6 +231,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
         """Reject an announcement"""
+        if not self._can_approve_announcement(request):
+            return Response(
+                {"error": "You do not have permission to reject announcements."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         announcement = self.get_object()
         if announcement.status != "PENDING_REVIEW":
             return Response(
@@ -234,6 +260,11 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def publish(self, request, pk=None):
         """Publish an approved announcement"""
+        if not self._can_approve_announcement(request):
+            return Response(
+                {"error": "You do not have permission to publish announcements."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         announcement = self.get_object()
         if announcement.status != "APPROVED":
             return Response(
