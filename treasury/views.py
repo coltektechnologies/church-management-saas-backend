@@ -13,22 +13,32 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models.base_models import AuditLog
+from accounts.permissions import has_permission as has_custom_permission
 
-from .models import (Asset, ExpenseCategory, ExpenseRequest,
-                     ExpenseTransaction, IncomeCategory, IncomeTransaction)
-from .serializers import (ApproveExpenseRequestSerializer,
-                          AssetDetailSerializer, AssetListSerializer,
-                          DisburseExpenseRequestSerializer,
-                          ExpenseCategorySerializer,
-                          ExpenseRequestDetailSerializer,
-                          ExpenseRequestListSerializer,
-                          ExpenseTransactionDetailSerializer,
-                          ExpenseTransactionListSerializer,
-                          IncomeCategorySerializer,
-                          IncomeTransactionDetailSerializer,
-                          IncomeTransactionListSerializer,
-                          RejectExpenseRequestSerializer,
-                          TreasuryStatisticsSerializer)
+from .models import (
+    Asset,
+    ExpenseCategory,
+    ExpenseRequest,
+    ExpenseTransaction,
+    IncomeCategory,
+    IncomeTransaction,
+)
+from .serializers import (
+    ApproveExpenseRequestSerializer,
+    AssetDetailSerializer,
+    AssetListSerializer,
+    DisburseExpenseRequestSerializer,
+    ExpenseCategorySerializer,
+    ExpenseRequestDetailSerializer,
+    ExpenseRequestListSerializer,
+    ExpenseTransactionDetailSerializer,
+    ExpenseTransactionListSerializer,
+    IncomeCategorySerializer,
+    IncomeTransactionDetailSerializer,
+    IncomeTransactionListSerializer,
+    RejectExpenseRequestSerializer,
+    TreasuryStatisticsSerializer,
+)
 
 # ==========================================
 # INCOME CATEGORY VIEWS
@@ -968,6 +978,20 @@ def approve_expense_request_treasurer(request, pk):
     """Approve expense request as Treasurer (final approval)"""
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
+
+    if not (
+        request.user.is_staff
+        or request.user.is_superuser
+        or has_custom_permission(
+            request.user, "treasury.approve_expense", church=church
+        )
+    ):
+        return Response(
+            {
+                "error": "Only users with treasury approval permission can approve at this stage."
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     if expense_request.status != "FIRST_ELDER_APPROVED":
         return Response(
