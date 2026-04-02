@@ -201,6 +201,19 @@ class MemberCreateSerializer(serializers.ModelSerializer):
                 {"email": "A user with this email already exists in this church."}
             )
 
+        wants_access = (
+            data.get("has_system_access")
+            or data.get("send_credentials_via_email")
+            or data.get("send_credentials_via_sms")
+        )
+        email = (data.get("email") or "").strip()
+        if wants_access and not email:
+            raise serializers.ValidationError(
+                {
+                    "email": "Email is required to create portal login and send credentials."
+                }
+            )
+
         return data
 
     def create(self, validated_data):
