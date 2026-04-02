@@ -268,8 +268,7 @@ class MemberCreateSerializer(serializers.ModelSerializer):
                 MemberDepartment.objects.create(
                     member=member,
                     department=department,
-                    is_active=True,
-                    date_joined=member.member_since,
+                    church=church,
                 )
             except Department.DoesNotExist:
                 # Skip if department doesn't exist
