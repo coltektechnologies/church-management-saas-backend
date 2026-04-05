@@ -4,7 +4,7 @@ import uuid
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -369,6 +369,15 @@ class UserView(APIView):
         is_active = request.query_params.get("is_active")
         if is_active is not None:
             users = users.filter(is_active=is_active.lower() == "true")
+
+        active_role_qs = UserRole.objects.filter(is_active=True).select_related("role")
+        users = users.select_related("church").prefetch_related(
+            Prefetch("userrole_set", queryset=active_role_qs),
+            Prefetch(
+                "church_group_memberships",
+                queryset=ChurchGroupMember.objects.select_related("group"),
+            ),
+        )
 
         serializer = UserListSerializer(users, many=True, context={"request": request})
         return Response(serializer.data)

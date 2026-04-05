@@ -1107,6 +1107,8 @@ class UserListSerializer(serializers.ModelSerializer):
 
     church_name = serializers.CharField(source="church.name", read_only=True)
     full_name = serializers.SerializerMethodField()
+    primary_role_name = serializers.SerializerMethodField()
+    church_group_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -1114,6 +1116,8 @@ class UserListSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "email",
+            "first_name",
+            "last_name",
             "full_name",
             "phone",
             "church_name",
@@ -1121,12 +1125,25 @@ class UserListSerializer(serializers.ModelSerializer):
             "is_staff",
             "last_login",
             "created_at",
+            "primary_role_name",
+            "church_group_ids",
         ]
         read_only_fields = ["id"]
 
     def get_full_name(self, obj):
         """Get user's full name"""
         return f"{obj.first_name} {obj.last_name}".strip() or obj.username
+
+    def get_primary_role_name(self, obj):
+        """Highest-privilege active role (lowest `Role.level` value)."""
+        roles = [ur for ur in obj.userrole_set.all() if ur.is_active]
+        if not roles:
+            return ""
+        best = min(roles, key=lambda ur: ur.role.level)
+        return best.role.name
+
+    def get_church_group_ids(self, obj):
+        return [str(m.group_id) for m in obj.church_group_memberships.all()]
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):
@@ -1278,7 +1295,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
             "notification_preference",
             "church_groups",
         ]
-        extra_kwargs = {"church": {"required": False, "allow_null": True}}
+        extra_kwargs = {
+            "church": {"required": False, "allow_null": True},
+            # Omit in API; we derive from first_name/last_name in validate() / validate_username.
+            "username": {"required": False, "allow_blank": True},
+        }
 
     def validate_email(self, value):
         """Validate email uniqueness per church"""
@@ -1417,38 +1438,79 @@ class UserCreateSerializer(serializers.ModelSerializer):
                     except ChurchGroup.DoesNotExist:
                         pass  # Skip invalid or wrong-church groups
 
-            # Send credentials if requested
-            if send_credentials and user.email:
-                from members.services.credential_service import send_credentials
+            # Send credentials if requested (email and/or SMS per notification_preference)
+            can_email = notification_preference in ("email", "both") and bool(
+                user.email
+            )
+            can_sms = notification_preference in ("sms", "both") and bool(user.phone)
+            if send_credentials and (can_email or can_sms):
+                from members.services.credential_service import (
+                    send_credentials as deliver_credentials,
+                )
+
+                request = self.context.get("request")
+                allow_staff_invite = False
+                if request and request.user.is_authenticated:
+                    if getattr(request.user, "is_platform_admin", False):
+                        allow_staff_invite = True
+                    elif (
+                        getattr(request.user, "church_id", None)
+                        and user.church_id
+                        and str(request.user.church_id) == str(user.church_id)
+                    ):
+                        allow_staff_invite = True
 
                 try:
-                    send_credentials(
+                    outcome = deliver_credentials(
                         user=user,
                         password=password,
                         notification_preference=notification_preference,
-                        request=self.context.get("request"),
+                        request=request,
+                        allow_staff_invite=allow_staff_invite,
                     )
-
-                    # Log successful credential sending
-                    AuditLog.objects.create(
-                        user=user,
-                        action="CREDENTIALS_SENT",
-                        description=f"Login credentials sent to {user.email} via {notification_preference}",
-                        church=user.church,
-                        metadata={
-                            "notification_method": notification_preference,
-                            "auto_generated": auto_generated_password,
-                        },
-                    )
+                    if outcome.get("success"):
+                        AuditLog.objects.create(
+                            user=user,
+                            action="CREDENTIALS_SENT",
+                            description=(
+                                f"Login credentials sent ({notification_preference}) "
+                                f"to {user.email or ''} / {user.phone or ''}".strip(),
+                            ),
+                            church=user.church,
+                            metadata={
+                                "notification_method": notification_preference,
+                                "auto_generated": auto_generated_password,
+                                "email_sent": outcome.get("email_sent"),
+                                "sms_sent": outcome.get("sms_sent"),
+                            },
+                        )
+                    else:
+                        err = outcome.get("error", "Unknown delivery failure")
+                        logger.error(
+                            "Credential delivery failed for user %s: %s",
+                            user.email or user.id,
+                            err,
+                        )
+                        AuditLog.objects.create(
+                            user=user,
+                            action="CREDENTIALS_FAILED",
+                            description=f"Failed to send login credentials: {err}",
+                            church=user.church,
+                            metadata={
+                                "error": err,
+                                "notification_method": notification_preference,
+                            },
+                        )
                 except Exception as e:
-                    # Log the error but don't fail the user creation
                     logger.error(
-                        f"Failed to send credentials to {user.email}: {str(e)}"
+                        "Failed to send credentials to %s: %s",
+                        user.email or user.id,
+                        str(e),
                     )
                     AuditLog.objects.create(
                         user=user,
                         action="CREDENTIALS_FAILED",
-                        description=f"Failed to send login credentials to {user.email}: {str(e)}",
+                        description=f"Failed to send login credentials: {str(e)}",
                         church=user.church,
                         metadata={
                             "error": str(e),

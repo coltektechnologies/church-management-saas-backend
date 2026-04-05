@@ -1,6 +1,7 @@
 import logging
 import threading
 
+from django.db.models import Prefetch
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -10,6 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.notification_utils import church_can_use_sms_email
+from departments.models import MemberDepartment
 from members.member_serializers import MemberCreateSerializer
 from members.models import Member, MemberLocation
 from members.serializers import MemberLocationSerializer, MemberSerializer
@@ -300,8 +302,13 @@ class MemberView(APIView):
         tags=["Members"],
     )
     def get(self, request):
-        members = Member.objects.filter(
-            church=request.user.church, deleted_at__isnull=True
+        dept_links = MemberDepartment.objects.filter(
+            deleted_at__isnull=True
+        ).select_related("department")
+        members = (
+            Member.objects.filter(church=request.user.church, deleted_at__isnull=True)
+            .prefetch_related("location")
+            .prefetch_related(Prefetch("memberdepartment_set", queryset=dept_links))
         )
         serializer = MemberSerializer(members, many=True, context={"request": request})
         return Response(serializer.data)
