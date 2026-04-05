@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "cloudinary_storage",
     # Your apps
-    "accounts",
+    "accounts.apps.AccountsConfig",
     "members",
     "departments",
     "secretariat",
