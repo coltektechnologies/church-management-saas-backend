@@ -140,3 +140,31 @@ def after_primary_department_head_change(
         reconcile_department_head_user_role(
             new_head_member_id, church_id, assigned_by=assigned_by
         )
+
+
+def get_member_for_department_portal_user(user, department: Department):
+    """
+    Return the church Member linked to ``user`` if they may use the department portal
+    for ``department`` (primary department head or elder in charge).
+    """
+    if not user or not getattr(user, "is_authenticated", False):
+        return None
+    church_id = getattr(user, "church_id", None)
+    if not church_id or department.church_id != church_id:
+        return None
+    member = Member.objects.filter(
+        church_id=church_id,
+        system_user_id=user.id,
+        deleted_at__isnull=True,
+    ).first()
+    if not member:
+        return None
+    if DepartmentHead.objects.filter(
+        department=department,
+        member_id=member.id,
+        head_role=DepartmentHead.HeadRole.HEAD,
+    ).exists():
+        return member
+    if getattr(department, "elder_in_charge_id", None) == member.id:
+        return member
+    return None

@@ -139,6 +139,7 @@ urlpatterns = [
 #
 # Department Custom Actions:
 # GET    /api/departments/{id}/members/             - Get department members
+# GET/POST /api/departments/{id}/member-messages/   - Portal: in-app history (GET) or bulk email / SMS / in-app (POST)
 # POST   /api/departments/{id}/assign_member/       - Assign member to department
 # DELETE /api/departments/{id}/members/{member_id}/  - Remove member from department
 # PUT    /api/departments/{id}/head/                - Assign department head (primary)

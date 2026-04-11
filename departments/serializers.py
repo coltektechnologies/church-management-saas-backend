@@ -875,6 +875,26 @@ class ProgramApproveRejectSerializer(serializers.ModelSerializer):
 
 
 # ==========================================
+# DEPARTMENT → MEMBER MESSAGING (PORTAL)
+# ==========================================
+
+
+class DepartmentMemberMessageSerializer(serializers.Serializer):
+    """Bulk email, SMS, or in-app message from department head / elder in charge to department members."""
+
+    channel = serializers.ChoiceField(choices=("email", "sms", "in_app"))
+    subject = serializers.CharField(
+        max_length=200, allow_blank=True, required=False, default=""
+    )
+    body = serializers.CharField(max_length=5000)
+    member_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+        max_length=500,
+    )
+
+
+# ==========================================
 # STATISTICS SERIALIZERS
 # ==========================================
 
