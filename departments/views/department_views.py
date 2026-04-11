@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -9,7 +11,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from members.models import Member
 from members.serializers import MemberSerializer
 
 from ..models import (
@@ -34,6 +35,7 @@ from ..serializers import (
     ProgramBudgetItemSerializer,
     ProgramListSerializer,
 )
+from ..services.portal_user_roles import after_primary_department_head_change
 
 
 class DepartmentViewSet(viewsets.ModelViewSet):
@@ -74,6 +76,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             member_id = serializer.validated_data["member_id"]
 
+            previous_head_member_id = (
+                DepartmentHead.objects.filter(
+                    department=department,
+                    head_role=DepartmentHead.HeadRole.HEAD,
+                )
+                .values_list("member_id", flat=True)
+                .first()
+            )
+
             department_head, created = DepartmentHead.objects.update_or_create(
                 department=department,
                 head_role=DepartmentHead.HeadRole.HEAD,
@@ -81,6 +92,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                     "member_id": member_id,
                     "church_id": department.church_id,
                 },
+            )
+
+            after_primary_department_head_change(
+                department,
+                previous_head_member_id,
+                member_id,
+                assigned_by=request.user,
             )
 
             return Response(
@@ -186,6 +204,65 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="statistics",
+        url_name="department-detail-statistics",
+    )
+    def department_statistics(self, request, pk=None):
+        """
+        Statistics for one department (portal dashboard KPIs).
+
+        GET /api/departments/{id}/statistics/
+
+        This is separate from ``statistics`` (detail=False), which aggregates
+        across all departments at /api/departments/statistics/.
+        """
+        department = self.get_object()
+        today = timezone.now().date()
+
+        total_members = MemberDepartment.objects.filter(department=department).count()
+
+        current_program = Program.objects.filter(
+            department=department,
+            status__in=["APPROVED", "IN_PROGRESS"],
+            start_date__lte=today,
+            end_date__gte=today,
+        ).first()
+
+        upcoming_programs = (
+            Program.objects.filter(
+                department=department,
+                start_date__gte=today,
+                start_date__lte=today + timedelta(days=30),
+            )
+            .exclude(status="CANCELLED")
+            .count()
+        )
+
+        statistics = {
+            "total_members": total_members,
+            "current_program": {
+                "title": current_program.title if current_program else None,
+                "start_date": current_program.start_date if current_program else None,
+                "end_date": current_program.end_date if current_program else None,
+                "total_income": (
+                    float(current_program.total_income) if current_program else 0
+                ),
+                "total_expenses": (
+                    float(current_program.total_expenses) if current_program else 0
+                ),
+                "net_budget": (
+                    float(current_program.net_budget) if current_program else 0
+                ),
+            },
+            "upcoming_programs": upcoming_programs,
+        }
+
+        serializer = DepartmentStatisticsSerializer(statistics)
+        return Response(serializer.data)
+
     def get_queryset(self):
         # Handle Swagger schema generation
         if getattr(self, "swagger_fake_view", False):
@@ -198,6 +275,73 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(church=self.request.user.church)
 
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="my-portal")
+    def my_portal(self, request):
+        """
+        Department portal shell: the department where the signed-in user is primary head
+        or elder in charge. Requires `Member.system_user_id` = request.user.id.
+        """
+        user = request.user
+        church_id = getattr(user, "church_id", None)
+        if not church_id:
+            return Response(
+                {"detail": "Church context required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        member = Member.objects.filter(
+            church_id=church_id,
+            system_user_id=user.id,
+            deleted_at__isnull=True,
+        ).first()
+        if not member:
+            return Response(
+                {"detail": "No church member profile is linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        head_row = (
+            DepartmentHead.objects.filter(
+                member=member,
+                head_role=DepartmentHead.HeadRole.HEAD,
+            )
+            .select_related("department")
+            .first()
+        )
+        dept = None
+        portal_role = None
+        if head_row and head_row.department and head_row.department.deleted_at is None:
+            dept = head_row.department
+            portal_role = "department_head"
+        else:
+            elder_dept = Department.objects.filter(
+                church_id=church_id,
+                elder_in_charge=member,
+                deleted_at__isnull=True,
+            ).first()
+            if elder_dept:
+                dept = elder_dept
+                portal_role = "elder_in_charge"
+        if not dept or not portal_role:
+            return Response(
+                {
+                    "detail": (
+                        "You are not assigned as department head or elder in charge "
+                        "of any department."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(
+            {
+                "portal_role": portal_role,
+                "department": DepartmentSerializer(
+                    dept, context={"request": request}
+                ).data,
+                "viewer_member": MemberSerializer(
+                    member, context={"request": request}
+                ).data,
+            }
+        )
 
     def get_serializer_class(self):
         if self.action == "list":
