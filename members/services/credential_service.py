@@ -10,20 +10,31 @@ from notifications.services import SMSService
 logger = logging.getLogger(__name__)
 
 
-def send_credentials_email(recipient, email, password, allow_initial_admin=False):
+def send_credentials_email(
+    recipient,
+    email,
+    password,
+    allow_initial_admin=False,
+    allow_staff_invite=False,
+):
     """Send login credentials via email.
 
     allow_initial_admin: If True, allow for FREE plan when sending to first admin during church setup.
+    allow_staff_invite: If True, allow for FREE plan when a church admin created this user.
     """
     church = getattr(recipient, "church", None)
-    if not church_can_use_sms_email(church, allow_initial_admin=allow_initial_admin):
+    if not church_can_use_sms_email(
+        church,
+        allow_initial_admin=allow_initial_admin,
+        allow_staff_invite=allow_staff_invite,
+    ):
         logger.warning(
             "send_credentials_email skipped: church plan disallows outbound email/SMS "
             "(church_id=%s, plan=%s)",
             getattr(church, "id", None),
             getattr(church, "subscription_plan", None),
         )
-        return
+        return False
     subject = f"Your {church.name} Login Credentials"
     context = {
         "member": recipient,
@@ -45,6 +56,7 @@ def send_credentials_email(recipient, email, password, allow_initial_admin=False
         html_message=html_message,
         fail_silently=False,
     )
+    return True
 
 
 def send_credentials_sms(
@@ -53,22 +65,31 @@ def send_credentials_sms(
     password=None,
     email=None,
     allow_initial_admin=False,
+    allow_staff_invite=False,
     login_username=None,
 ):
     """Send login credentials via SMS using mNotify.
 
     allow_initial_admin: If True, allow for FREE plan when sending to first admin during church setup.
+    allow_staff_invite: If True, allow for FREE plan when a church admin created this user.
     login_username: Portal login username (Member.system User); Member.username is often empty.
     """
     church = getattr(recipient, "church", None)
-    if not church_can_use_sms_email(church, allow_initial_admin=allow_initial_admin):
+    if not church_can_use_sms_email(
+        church,
+        allow_initial_admin=allow_initial_admin,
+        allow_staff_invite=allow_staff_invite,
+    ):
         logger.warning(
             "send_credentials_sms skipped: church plan disallows outbound SMS "
             "(church_id=%s, plan=%s)",
             getattr(church, "id", None),
             getattr(church, "subscription_plan", None),
         )
-        return {"success": False, "error": "SMS/email not available for FREE plan"}
+        return {
+            "success": False,
+            "error": "SMS/email not available for this plan (enable staff invite or upgrade)",
+        }
     member = recipient
     try:
         from notifications.services.mnotify_service import MNotifyService
@@ -131,11 +152,13 @@ def send_credentials(
     notification_preference="email",
     request=None,
     allow_initial_admin=None,
+    allow_staff_invite=False,
 ):
     """Send login credentials to the user based on their notification preference.
 
     allow_initial_admin: If True, allow for FREE plan (first admin during church setup).
         If None, auto-detect: True when church has exactly 1 active user (the one we're sending to).
+    allow_staff_invite: If True, allow FREE-plan churches to send when an admin created this user.
     """
     if allow_initial_admin is None and user.church:
         allow_initial_admin = user.church.users.filter(is_active=True).count() == 1
@@ -151,10 +174,18 @@ def send_credentials(
         # Send email if requested
         if notification_preference in ["email", "both"] and user.email:
             try:
-                send_credentials_email(
-                    user, user.email, password, allow_initial_admin=allow_initial_admin
+                email_ok = send_credentials_email(
+                    user,
+                    user.email,
+                    password,
+                    allow_initial_admin=allow_initial_admin,
+                    allow_staff_invite=allow_staff_invite,
                 )
-                results["email_sent"] = True
+                results["email_sent"] = bool(email_ok)
+                if not email_ok:
+                    results["email_error"] = results.get(
+                        "email_error", "Email not sent (plan gate or SMTP)"
+                    )
             except Exception as e:
                 logger = logging.getLogger(__name__)
                 logger.error(f"Failed to send email to {user.email}: {str(e)}")
@@ -170,6 +201,7 @@ def send_credentials(
                     password,
                     user.email,
                     allow_initial_admin=allow_initial_admin,
+                    allow_staff_invite=allow_staff_invite,
                 )
                 results["sms_sent"] = sms_result.get("success", False)
                 if not results["sms_sent"]:

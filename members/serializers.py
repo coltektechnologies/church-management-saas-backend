@@ -65,6 +65,23 @@ class MemberSerializer(serializers.ModelSerializer):
             "deleted_at",
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["department_names"] = self._department_names_list(instance)
+        return data
+
+    @staticmethod
+    def _department_names_list(instance: Member) -> list[str]:
+        """Active MemberDepartment rows → department names (sorted). Uses prefetch when present."""
+        names: list[str] = []
+        for md in instance.memberdepartment_set.all():
+            if md.deleted_at is not None:
+                continue
+            dept = md.department
+            if dept is not None and dept.name:
+                names.append(dept.name)
+        return sorted(set(names))
+
     def create(self, validated_data):
         request = self.context.get("request")
         location_data = validated_data.pop("location", None)

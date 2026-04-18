@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -39,6 +40,8 @@ from .serializers import (
     RejectExpenseRequestSerializer,
     TreasuryStatisticsSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 # ==========================================
 # INCOME CATEGORY VIEWS
@@ -798,6 +801,17 @@ def submit_expense_request(request, pk):
         request=request,
         description=f"Expense request {expense_request.request_number} submitted for approval",
     )
+    try:
+        from .expense_notifications import notify_expense_request_submit
+
+        notify_expense_request_submit(expense_request)
+    except Exception as e:
+        logger.warning(
+            "Expense request submit notifications failed for %s: %s",
+            expense_request.pk,
+            e,
+        )
+
     serializer = ExpenseRequestDetailSerializer(
         expense_request, context={"request": request}
     )
@@ -884,6 +898,17 @@ def approve_expense_request_dept_head(request, pk):
             request=request,
             description=f"Expense request {expense_request.request_number} approved by Department Head",
         )
+        try:
+            from .expense_notifications import notify_expense_request_after_dept_head
+
+            notify_expense_request_after_dept_head(expense_request)
+        except Exception as e:
+            logger.warning(
+                "Expense request dept-head notifications failed for %s: %s",
+                expense_request.pk,
+                e,
+            )
+
         response_serializer = ExpenseRequestDetailSerializer(
             expense_request, context={"request": request}
         )
@@ -957,6 +982,17 @@ def approve_expense_request_first_elder(request, pk):
             request=request,
             description=f"Expense request {expense_request.request_number} approved by First Elder",
         )
+        try:
+            from .expense_notifications import notify_expense_request_after_first_elder
+
+            notify_expense_request_after_first_elder(expense_request)
+        except Exception as e:
+            logger.warning(
+                "Expense request first-elder notifications failed for %s: %s",
+                expense_request.pk,
+                e,
+            )
+
         response_serializer = ExpenseRequestDetailSerializer(
             expense_request, context={"request": request}
         )

@@ -229,7 +229,7 @@ class MemberCreateSerializer(serializers.ModelSerializer):
         if region == "Other":
             region = validated_data.pop("custom_region", "Other")
 
-        # Create Member
+        # Create Member (emergency contact on model fields — not only embedded in notes)
         member = Member.objects.create(
             church=church,
             title=validated_data["title"],
@@ -245,7 +245,11 @@ class MemberCreateSerializer(serializers.ModelSerializer):
             baptism_status=validated_data.get("baptism_status"),
             education_level=validated_data["education_level"],
             occupation=validated_data["occupation"],
-            notes=validated_data.get("admin_notes", ""),
+            notes=validated_data.get("admin_notes", "") or "",
+            emergency_contact_name=emergency_contact_data.get("full_name") or "",
+            emergency_contact_relationship=emergency_contact_data.get("relationship")
+            or "",
+            emergency_contact_phone=emergency_contact_data.get("phone_number") or "",
         )
 
         # Create MemberLocation
@@ -260,17 +264,7 @@ class MemberCreateSerializer(serializers.ModelSerializer):
             country="Ghana",  # Default to Ghana as per requirements
         )
 
-        # Create Emergency Contact (as a note for now, can be a separate model)
-        emergency_note = (
-            f"Emergency Contact:\n"
-            f"Name: {emergency_contact_data['full_name']}\n"
-            f"Relationship: {emergency_contact_data['relationship']}\n"
-            f"Phone: {emergency_contact_data['phone_number']}"
-        )
-        member.notes = (
-            f"{member.notes}\n\n{emergency_note}" if member.notes else emergency_note
-        )
-        member.save()
+        # Emergency details live on Member.emergency_contact_*; avoid duplicating into notes.
 
         # Add to departments
         for dept_name in interested_departments:

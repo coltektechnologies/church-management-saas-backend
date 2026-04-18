@@ -16,6 +16,10 @@ from .models import (
     Program,
     ProgramBudgetItem,
 )
+from .services.portal_user_roles import (
+    after_primary_department_head_change,
+    reconcile_elder_in_charge_user_role,
+)
 
 # ==========================================
 # DEPARTMENT SERIALIZERS
@@ -150,6 +154,24 @@ class DepartmentSerializer(serializers.ModelSerializer):
             return obj.elder_in_charge.full_name
         return None
 
+    def update(self, instance, validated_data):
+        old_elder_id = instance.elder_in_charge_id
+        instance = super().update(instance, validated_data)
+        new_elder_id = instance.elder_in_charge_id
+        if old_elder_id != new_elder_id:
+            request = self.context.get("request")
+            assigned_by = getattr(request, "user", None) if request else None
+            church_id = instance.church_id
+            if old_elder_id:
+                reconcile_elder_in_charge_user_role(
+                    old_elder_id, church_id, assigned_by=assigned_by
+                )
+            if new_elder_id:
+                reconcile_elder_in_charge_user_role(
+                    new_elder_id, church_id, assigned_by=assigned_by
+                )
+        return instance
+
     def get_upcoming_programs_count(self, obj):
         return (
             Program.objects.filter(
@@ -267,6 +289,15 @@ class DepartmentWithHeadCreateSerializer(serializers.ModelSerializer):
         # Use get_or_create to prevent the duplicate key IntegrityError if the
         # same member+department combo already exists (e.g. retried requests).
         if head_member:
+            previous_head_member_id = (
+                DepartmentHead.objects.filter(
+                    department=department,
+                    head_role=DepartmentHead.HeadRole.HEAD,
+                )
+                .values_list("member_id", flat=True)
+                .first()
+            )
+
             DepartmentHead.objects.filter(
                 department=department, head_role=DepartmentHead.HeadRole.HEAD
             ).exclude(member=head_member).delete()
@@ -276,6 +307,14 @@ class DepartmentWithHeadCreateSerializer(serializers.ModelSerializer):
                 head_role=DepartmentHead.HeadRole.HEAD,
                 member=head_member,
                 defaults={"church": church},
+            )
+
+            assigned_by = getattr(request, "user", None) if request else None
+            after_primary_department_head_change(
+                department,
+                previous_head_member_id,
+                head_member.id,
+                assigned_by=assigned_by,
             )
 
         return department
@@ -833,6 +872,26 @@ class ProgramApproveRejectSerializer(serializers.ModelSerializer):
                     description=f"Program '{instance.title}' rejected by {department}",
                 )
         return instance
+
+
+# ==========================================
+# DEPARTMENT → MEMBER MESSAGING (PORTAL)
+# ==========================================
+
+
+class DepartmentMemberMessageSerializer(serializers.Serializer):
+    """Bulk email, SMS, or in-app message from department head / elder in charge to department members."""
+
+    channel = serializers.ChoiceField(choices=("email", "sms", "in_app"))
+    subject = serializers.CharField(
+        max_length=200, allow_blank=True, required=False, default=""
+    )
+    body = serializers.CharField(max_length=5000)
+    member_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+        max_length=500,
+    )
 
 
 # ==========================================

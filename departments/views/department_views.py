@@ -1,3 +1,8 @@
+import html
+import uuid
+from collections import defaultdict
+from datetime import timedelta
+
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -9,8 +14,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from members.models import Member
 from members.serializers import MemberSerializer
+from notifications.dispatch import EmailService, NotificationService, SMSService
 
 from ..models import (
     Department,
@@ -27,12 +32,17 @@ from ..serializers import (
     DepartmentCreateSerializer,
     DepartmentHeadSerializer,
     DepartmentListSerializer,
+    DepartmentMemberMessageSerializer,
     DepartmentSerializer,
     DepartmentStatisticsSerializer,
     DepartmentWithHeadCreateSerializer,
     MemberDepartmentSerializer,
     ProgramBudgetItemSerializer,
     ProgramListSerializer,
+)
+from ..services.portal_user_roles import (
+    after_primary_department_head_change,
+    get_member_for_department_portal_user,
 )
 
 
@@ -74,6 +84,15 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if serializer.is_valid():
             member_id = serializer.validated_data["member_id"]
 
+            previous_head_member_id = (
+                DepartmentHead.objects.filter(
+                    department=department,
+                    head_role=DepartmentHead.HeadRole.HEAD,
+                )
+                .values_list("member_id", flat=True)
+                .first()
+            )
+
             department_head, created = DepartmentHead.objects.update_or_create(
                 department=department,
                 head_role=DepartmentHead.HeadRole.HEAD,
@@ -81,6 +100,13 @@ class DepartmentViewSet(viewsets.ModelViewSet):
                     "member_id": member_id,
                     "church_id": department.church_id,
                 },
+            )
+
+            after_primary_department_head_change(
+                department,
+                previous_head_member_id,
+                member_id,
+                assigned_by=request.user,
             )
 
             return Response(
@@ -186,6 +212,65 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             }
         )
 
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="statistics",
+        url_name="department-detail-statistics",
+    )
+    def department_statistics(self, request, pk=None):
+        """
+        Statistics for one department (portal dashboard KPIs).
+
+        GET /api/departments/{id}/statistics/
+
+        This is separate from ``statistics`` (detail=False), which aggregates
+        across all departments at /api/departments/statistics/.
+        """
+        department = self.get_object()
+        today = timezone.now().date()
+
+        total_members = MemberDepartment.objects.filter(department=department).count()
+
+        current_program = Program.objects.filter(
+            department=department,
+            status__in=["APPROVED", "IN_PROGRESS"],
+            start_date__lte=today,
+            end_date__gte=today,
+        ).first()
+
+        upcoming_programs = (
+            Program.objects.filter(
+                department=department,
+                start_date__gte=today,
+                start_date__lte=today + timedelta(days=30),
+            )
+            .exclude(status="CANCELLED")
+            .count()
+        )
+
+        statistics = {
+            "total_members": total_members,
+            "current_program": {
+                "title": current_program.title if current_program else None,
+                "start_date": current_program.start_date if current_program else None,
+                "end_date": current_program.end_date if current_program else None,
+                "total_income": (
+                    float(current_program.total_income) if current_program else 0
+                ),
+                "total_expenses": (
+                    float(current_program.total_expenses) if current_program else 0
+                ),
+                "net_budget": (
+                    float(current_program.net_budget) if current_program else 0
+                ),
+            },
+            "upcoming_programs": upcoming_programs,
+        }
+
+        serializer = DepartmentStatisticsSerializer(statistics)
+        return Response(serializer.data)
+
     def get_queryset(self):
         # Handle Swagger schema generation
         if getattr(self, "swagger_fake_view", False):
@@ -198,6 +283,73 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(church=self.request.user.church)
 
         return queryset
+
+    @action(detail=False, methods=["get"], url_path="my-portal")
+    def my_portal(self, request):
+        """
+        Department portal shell: the department where the signed-in user is primary head
+        or elder in charge. Requires `Member.system_user_id` = request.user.id.
+        """
+        user = request.user
+        church_id = getattr(user, "church_id", None)
+        if not church_id:
+            return Response(
+                {"detail": "Church context required."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        member = Member.objects.filter(
+            church_id=church_id,
+            system_user_id=user.id,
+            deleted_at__isnull=True,
+        ).first()
+        if not member:
+            return Response(
+                {"detail": "No church member profile is linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        head_row = (
+            DepartmentHead.objects.filter(
+                member=member,
+                head_role=DepartmentHead.HeadRole.HEAD,
+            )
+            .select_related("department")
+            .first()
+        )
+        dept = None
+        portal_role = None
+        if head_row and head_row.department and head_row.department.deleted_at is None:
+            dept = head_row.department
+            portal_role = "department_head"
+        else:
+            elder_dept = Department.objects.filter(
+                church_id=church_id,
+                elder_in_charge=member,
+                deleted_at__isnull=True,
+            ).first()
+            if elder_dept:
+                dept = elder_dept
+                portal_role = "elder_in_charge"
+        if not dept or not portal_role:
+            return Response(
+                {
+                    "detail": (
+                        "You are not assigned as department head or elder in charge "
+                        "of any department."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response(
+            {
+                "portal_role": portal_role,
+                "department": DepartmentSerializer(
+                    dept, context={"request": request}
+                ).data,
+                "viewer_member": MemberSerializer(
+                    member, context={"request": request}
+                ).data,
+            }
+        )
 
     def get_serializer_class(self):
         if self.action == "list":
@@ -306,6 +458,220 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         members = [md.member for md in member_departments]
         serializer = MemberSerializer(members, many=True)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["get", "post"], url_path="member-messages")
+    def member_messages(self, request, pk=None):
+        """
+        Department portal: list recent in-app batches (GET) or send email, SMS, or
+        in-app messages to members in this department (POST).
+
+        Only the primary department head or elder in charge may call this.
+        """
+        department = self.get_object()
+        if not get_member_for_department_portal_user(request.user, department):
+            return Response(
+                {
+                    "detail": (
+                        "Only the department head or elder in charge can message "
+                        "members from this department."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        dept_member_ids = set(
+            MemberDepartment.objects.filter(department=department).values_list(
+                "member_id", flat=True
+            )
+        )
+
+        if request.method == "GET":
+            return Response(
+                self._department_member_message_history(department, dept_member_ids)
+            )
+
+        serializer = DepartmentMemberMessageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        channel = serializer.validated_data["channel"]
+        subject = (serializer.validated_data.get("subject") or "").strip()
+        body = serializer.validated_data["body"].strip()
+        member_ids = serializer.validated_data["member_ids"]
+
+        for mid in member_ids:
+            if mid not in dept_member_ids:
+                return Response(
+                    {"detail": f"Member {mid} is not in this department."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        members = list(
+            Member.objects.filter(
+                id__in=member_ids,
+                church_id=department.church_id,
+                deleted_at__isnull=True,
+            ).select_related("location")
+        )
+        found_ids = {m.id for m in members}
+        requested_ids = set(member_ids)
+        if found_ids != requested_ids:
+            return Response(
+                {"detail": "One or more members were not found in your church."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        church = department.church
+        batch_id = str(uuid.uuid4())
+        sent = 0
+        skipped = []
+        errors = []
+
+        if channel == "email":
+            if not subject:
+                return Response(
+                    {"detail": "Subject is required for email."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            safe_body = html.escape(body).replace("\n", "<br/>")
+            message_html = (
+                f"<div style='font-family:sans-serif;font-size:14px'>{safe_body}</div>"
+            )
+            for m in members:
+                loc = getattr(m, "location", None)
+                email_addr = (getattr(loc, "email", None) or "").strip()
+                if not email_addr:
+                    skipped.append(str(m.id))
+                    continue
+                try:
+                    EmailService.send_email(
+                        church,
+                        email_addr,
+                        subject,
+                        message_html,
+                        member=m,
+                        message_plain=body,
+                    )
+                    sent += 1
+                except PermissionError as exc:
+                    return Response(
+                        {"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN
+                    )
+                except Exception as exc:
+                    errors.append(f"{m.id}: {exc}")
+
+        elif channel == "sms":
+            prefix = f"{subject}: " if subject else ""
+            raw = f"{prefix}{body}".strip()
+            sms_text = raw[:160] if len(raw) > 160 else raw
+            for m in members:
+                loc = getattr(m, "location", None)
+                phone = (getattr(loc, "phone_primary", None) or "").strip()
+                if not phone:
+                    skipped.append(str(m.id))
+                    continue
+                try:
+                    SMSService.send_sms(church, phone, sms_text, member=m)
+                    sent += 1
+                except PermissionError as exc:
+                    return Response(
+                        {"detail": str(exc)}, status=status.HTTP_403_FORBIDDEN
+                    )
+                except Exception as exc:
+                    errors.append(f"{m.id}: {exc}")
+
+        elif channel == "in_app":
+            title = subject or "Department message"
+            if len(title) > 200:
+                title = title[:197] + "..."
+            link = f"deptmsg:{batch_id}"
+            for m in members:
+                try:
+                    NotificationService.create_notification(
+                        church=church,
+                        member=m,
+                        title=title,
+                        message=body,
+                        created_by=request.user,
+                        category="GENERAL",
+                        link=link,
+                    )
+                    sent += 1
+                except Exception as exc:
+                    errors.append(f"{m.id}: {exc}")
+        else:
+            return Response(
+                {"detail": "Invalid channel."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if sent == 0 and not errors and skipped:
+            if channel == "sms":
+                detail = "No messages sent; selected members have no phone on file."
+            elif channel == "email":
+                detail = "No messages sent; selected members have no email on file."
+            else:
+                detail = "No messages sent; no recipients could be notified."
+            return Response(
+                {"detail": detail, "skipped_member_ids": skipped},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if sent == 0 and errors:
+            return Response(
+                {
+                    "success": False,
+                    "detail": (
+                        errors[0] if len(errors) == 1 else "Could not deliver messages."
+                    ),
+                    "errors": errors,
+                },
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                "success": True,
+                "message_id": batch_id,
+                "sent": sent,
+                "skipped_member_ids": skipped,
+                "errors": errors,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _department_member_message_history(self, department, dept_member_ids):
+        """Group in-app notifications created by this user with link deptmsg:{uuid}."""
+        from notifications.models import Notification
+
+        qs = Notification.objects.filter(
+            church_id=department.church_id,
+            member_id__in=dept_member_ids,
+            created_by_id=self.request.user.id,
+            link__startswith="deptmsg:",
+        ).order_by("-created_at")[:400]
+        batches = defaultdict(list)
+        for n in qs:
+            if n.link:
+                batches[n.link].append(n)
+
+        out = []
+        for link, items in batches.items():
+            items.sort(key=lambda x: x.created_at, reverse=True)
+            first = items[0]
+            stamp = first.sent_at or first.created_at
+            out.append(
+                {
+                    "id": link.replace("deptmsg:", "", 1),
+                    "title": first.title,
+                    "content": first.message,
+                    "type": "in_app",
+                    "recipientCount": len(items),
+                    "recipientIds": [str(x.member_id) for x in items],
+                    "status": "delivered",
+                    "sentAt": stamp.isoformat() if stamp else None,
+                }
+            )
+        out.sort(key=lambda x: x.get("sentAt") or "", reverse=True)
+        return out[:40]
 
 
 class MemberDepartmentViewSet(viewsets.ModelViewSet):

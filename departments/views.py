@@ -219,6 +219,14 @@ class DepartmentViewSet(viewsets.ModelViewSet):
 
         member = Member.objects.get(id=input_serializer.validated_data["member_id"])
 
+        previous_head_member_id = (
+            DepartmentHead.objects.filter(
+                department=department, head_role=DepartmentHead.HeadRole.HEAD
+            )
+            .values_list("member_id", flat=True)
+            .first()
+        )
+
         DepartmentHead.objects.filter(
             department=department, head_role=DepartmentHead.HeadRole.HEAD
         ).delete()
@@ -228,6 +236,17 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             member=member,
             church=department.church,
             head_role=DepartmentHead.HeadRole.HEAD,
+        )
+
+        from departments.services.portal_user_roles import (
+            after_primary_department_head_change,
+        )
+
+        after_primary_department_head_change(
+            department,
+            previous_head_member_id,
+            member.id,
+            assigned_by=request.user,
         )
 
         serializer = DepartmentHeadSerializer(head, context={"request": request})
