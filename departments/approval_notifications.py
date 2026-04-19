@@ -50,8 +50,13 @@ def notify_approval_chain(program, submitter_name=None):
     submitter_name = submitter_name or (
         program.created_by.get_full_name() if program.created_by else "Unknown"
     )
-    site_url = getattr(settings, "SITE_URL", "http://localhost:8000")
-    link = f"{site_url}/admin/departments/program/{program.id}/change/"
+    # Department portal budget hub + program id — avoids Django admin and lands in the correct dept context.
+    frontend = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
+        "/"
+    )
+    dept_id = str(program.department_id)
+    prog_id = str(program.id)
+    link = f"{frontend}/departments/budget?department={dept_id}&program={prog_id}"
     program_title = program.title or "Untitled Program"
 
     # Short SMS message (max ~160 chars per SMS)

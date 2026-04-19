@@ -7,6 +7,7 @@ from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from accounts.permissions import has_any_permission
 from accounts.permissions import has_permission as has_custom_permission
 
 from .models import (
@@ -102,6 +103,25 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
     """
 
     queryset = Announcement.objects.all()
+
+    @staticmethod
+    def _can_see_all_church_announcements(user) -> bool:
+        """Staff, superusers, and secretariat roles see every announcement for the church."""
+        if user.is_staff or user.is_superuser:
+            return True
+        church = getattr(user, "church", None)
+        if not church:
+            return False
+        return has_any_permission(
+            user,
+            [
+                "secretariat.view",
+                "secretariat.create_announcement",
+                "secretariat.approve_announcement",
+            ],
+            church,
+        )
+
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [
         DjangoFilterBackend,
@@ -168,8 +188,15 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
                 publish_at__lte=timezone.now(),
             )
 
-        # For non-admin users, only show published or their own announcements
-        if not (self.request.user.is_staff or self.request.user.is_superuser):
+        mine_only_raw = (self.request.query_params.get("mine_only") or "").lower()
+        mine_only = mine_only_raw in ("1", "true", "yes")
+
+        # Visibility
+        if mine_only:
+            # Department portal: list only announcements created by this user
+            qs = qs.filter(created_by=self.request.user)
+        elif not self._can_see_all_church_announcements(self.request.user):
+            # Members and general roles: published feed plus drafts they own
             qs = qs.filter(Q(status="PUBLISHED") | Q(created_by=self.request.user))
 
         return qs
@@ -189,6 +216,22 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
             request.user.is_staff
             or request.user.is_superuser
             or has_custom_permission(request.user, "secretariat.approve_announcement")
+        )
+
+    def _may_approve_or_publish_own_announcement(self, request, announcement) -> bool:
+        """
+        Approving/publishing your own post is only allowed for Secretariat creators (or Django staff).
+        Everyone else must have another officer approve/publish their announcement.
+        """
+        if announcement.created_by_id != request.user.id:
+            return True
+        if request.user.is_staff or request.user.is_superuser:
+            return True
+        church = getattr(request.user, "church", None)
+        if not church:
+            return False
+        return has_custom_permission(
+            request.user, "secretariat.create_announcement", church
         )
 
     @action(detail=True, methods=["post"])
@@ -219,6 +262,17 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Only announcements pending review can be approved."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not self._may_approve_or_publish_own_announcement(request, announcement):
+            return Response(
+                {
+                    "error": (
+                        "You cannot approve your own announcement. "
+                        "Ask another secretariat officer to approve it."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         announcement.status = "APPROVED"
@@ -270,6 +324,17 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
             return Response(
                 {"error": "Only approved announcements can be published."},
                 status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not self._may_approve_or_publish_own_announcement(request, announcement):
+            return Response(
+                {
+                    "error": (
+                        "You cannot publish your own announcement. "
+                        "Ask another secretariat officer to publish it."
+                    )
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
         announcement.status = "PUBLISHED"
