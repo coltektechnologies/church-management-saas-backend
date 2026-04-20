@@ -12,8 +12,10 @@ from rest_framework.views import APIView
 
 from reports.filters import get_date_range_from_request, get_report_filters
 from reports.models import ScheduledReport
-from reports.serializers import (ScheduledReportSerializer,
-                                 ScheduleReportCreateSerializer)
+from reports.serializers import (
+    ScheduledReportSerializer,
+    ScheduleReportCreateSerializer,
+)
 from reports.services import ReportGenerationService
 from reports.services.exporters import CSVExporter, ExcelExporter, PDFExporter
 
@@ -286,6 +288,21 @@ class ReportAnnouncementsView(APIView):
                 "date_to", openapi.IN_QUERY, type=openapi.TYPE_STRING, format="date"
             ),
             openapi.Parameter("status", openapi.IN_QUERY, type=openapi.TYPE_STRING),
+            openapi.Parameter(
+                "department_id",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                description=(
+                    "Scope announcements to authors linked to this department "
+                    "(department heads, assistant, elder in charge)."
+                ),
+            ),
+            openapi.Parameter(
+                "mine_only",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_BOOLEAN,
+                description="If true, only announcements created by the current user.",
+            ),
             openapi.Parameter(
                 "format",
                 openapi.IN_QUERY,

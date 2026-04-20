@@ -17,11 +17,15 @@ from django.utils import timezone
 from accounts.models import Church
 from accounts.models.base_models import AuditLog
 from announcements.models import Announcement
-from departments.models import Department, MemberDepartment
+from departments.models import Department, DepartmentHead, MemberDepartment
 from members.models import Member
 from reports.models import ReportCache
-from treasury.models import (ExpenseCategory, ExpenseTransaction,
-                             IncomeCategory, IncomeTransaction)
+from treasury.models import (
+    ExpenseCategory,
+    ExpenseTransaction,
+    IncomeCategory,
+    IncomeTransaction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -427,6 +431,49 @@ def _report_finance_cash_flow(
     }
 
 
+def _department_announcement_creator_user_ids(
+    church: Church, department_id: str
+) -> list:
+    """
+    Accounts (User ids) tied to department leadership — heads, assistants, elder in charge.
+    Announcements authored by these users are treated as created by the department.
+    """
+    from uuid import UUID
+
+    try:
+        dept_uuid = UUID(str(department_id))
+    except (ValueError, TypeError):
+        return []
+
+    try:
+        dept = Department.objects.get(
+            id=dept_uuid, church=church, deleted_at__isnull=True
+        )
+    except Department.DoesNotExist:
+        return []
+
+    user_ids = []
+    seen = set()
+
+    for row in DepartmentHead.objects.filter(department=dept).select_related("member"):
+        m = row.member
+        if not m:
+            continue
+        uid = getattr(m, "system_user_id", None)
+        if uid and uid not in seen:
+            seen.add(uid)
+            user_ids.append(uid)
+
+    elder = dept.elder_in_charge
+    if elder:
+        uid = getattr(elder, "system_user_id", None)
+        if uid and uid not in seen:
+            seen.add(uid)
+            user_ids.append(uid)
+
+    return user_ids
+
+
 def _report_announcements(
     church: Church, date_from: date, date_to: date, filters: dict
 ) -> dict:
@@ -444,6 +491,18 @@ def _report_announcements(
     status = filters.get("status")
     if status:
         qs = qs.filter(status=status)
+
+    created_by_id = filters.get("created_by_id")
+    dept_id = filters.get("department_id")
+    if created_by_id:
+        qs = qs.filter(created_by_id=created_by_id)
+    elif dept_id:
+        author_ids = _department_announcement_creator_user_ids(church, dept_id)
+        if author_ids:
+            qs = qs.filter(created_by_id__in=author_ids)
+        else:
+            qs = qs.none()
+
     by_status = list(qs.values("status").annotate(count=Count("id")))
     list_data = list(qs.values("id", "title", "status", "priority", "created_at")[:200])
     for r in list_data:

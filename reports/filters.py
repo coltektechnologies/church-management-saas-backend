@@ -22,7 +22,8 @@ def get_report_filters(request) -> dict:
     Build filters dict from request query params (excludes date range; use get_date_range_from_request).
     - membership_status: for member reports
     - status: for announcements
-    - department_id: optional scope
+    - department_id: optional scope (announcements: restrict to creators for that department)
+    - mine_only: if true, announcements created_by = request user (overrides department scope)
     """
     filters = {}
     if request.query_params.get("membership_status"):
@@ -31,6 +32,11 @@ def get_report_filters(request) -> dict:
         filters["status"] = request.query_params.get("status")
     if request.query_params.get("department_id"):
         filters["department_id"] = request.query_params.get("department_id")
+    mine_raw = (request.query_params.get("mine_only") or "").lower()
+    if mine_raw in ("1", "true", "yes") and getattr(
+        request.user, "is_authenticated", False
+    ):
+        filters["created_by_id"] = str(request.user.id)
     return filters
 
 
