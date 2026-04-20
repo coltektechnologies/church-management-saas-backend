@@ -7,8 +7,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import filters, mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import (NotFound, PermissionDenied,
-                                       ValidationError)
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
@@ -17,11 +16,14 @@ from notifications.models import Notification
 from notifications.services.email_service import EmailService
 
 from ..models import Program, ProgramBudgetItem
-from ..serializers import (ProgramApproveRejectSerializer,
-                           ProgramBudgetItemCreateSerializer,
-                           ProgramBudgetItemSerializer,
-                           ProgramDetailSerializer, ProgramListSerializer,
-                           ProgramSubmitSerializer)
+from ..serializers import (
+    ProgramApproveRejectSerializer,
+    ProgramBudgetItemCreateSerializer,
+    ProgramBudgetItemSerializer,
+    ProgramDetailSerializer,
+    ProgramListSerializer,
+    ProgramSubmitSerializer,
+)
 from ..views.program_step_views import ProgramStepViewSetMixin
 
 
@@ -379,7 +381,10 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
                 message=f"Your program '{program.title}' has been {action.lower()}d by the {department.lower()} department.{f' Notes: {notes}' if notes else ''}",
                 priority="MEDIUM",
                 category="PROGRAM",
-                link=f"{getattr(settings, 'SITE_URL', 'http://localhost:8000')}/admin/departments/program/{program.id}/change/",
+                link=(
+                    f"{getattr(settings, 'FRONTEND_BASE_URL', 'http://localhost:3000').rstrip('/')}"
+                    f"/departments/budget?department={program.department_id}&program={program.id}"
+                ),
             )
 
         return Response(
