@@ -6,6 +6,10 @@ from rest_framework import serializers
 
 from accounts.models import Role, User, UserRole
 from departments.models import Department, MemberDepartment
+from departments.services.portal_user_roles import (
+    reconcile_department_head_user_role,
+    reconcile_elder_in_charge_user_role,
+)
 from members.models import Member, MemberLocation
 
 
@@ -341,10 +345,19 @@ class MemberCreateSerializer(serializers.ModelSerializer):
 
         # Assign default member role (level 4 = Member). Role is global; UserRole links to church.
         try:
-            member_role = Role.objects.get(level=4)
-            UserRole.objects.create(user=user, role=member_role, church=church)
-        except Role.DoesNotExist:
-            # Handle case where member role doesn't exist
+            member_role = Role.objects.filter(level=4).first()
+            if member_role:
+                UserRole.objects.create(user=user, role=member_role, church=church)
+        except Exception:
             pass
+
+        # Link Member ↔ User so portal routing & Department Head UserRole sync work.
+        # reconcile_* needs system_user_id; assigning head before credentials existed used to skip this.
+        member.has_system_access = True
+        member.system_user_id = user.id
+        member.save(update_fields=["has_system_access", "system_user_id"])
+
+        reconcile_department_head_user_role(member.id, church.id)
+        reconcile_elder_in_charge_user_role(member.id, church.id)
 
         # Email/SMS delivery runs in MemberCreateView on a background thread.

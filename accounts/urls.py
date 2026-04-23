@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .payment_query_views import PlatformPaymentListView
 from .payments import initialize_payment, paystack_webhook, test_paystack
 from .views import (
     ChangePasswordAPIView,
@@ -157,6 +158,11 @@ urlpatterns = [
         "paystack/test/",
         test_paystack,
         name="test-paystack",
+    ),
+    path(
+        "payments/",
+        PlatformPaymentListView.as_view(),
+        name="payment-list",
     ),
     path(
         "payments/initialize/",

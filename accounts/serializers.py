@@ -972,12 +972,15 @@ class ChurchListSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "email",
+            "phone",
             "subdomain",
             "city",
             "country",
             "status",
             "status_display",
             "subscription_plan",
+            "subscription_ends_at",
             "user_count",
             "platform_access_enabled",
             "created_at",
@@ -987,6 +990,32 @@ class ChurchListSerializer(serializers.ModelSerializer):
     def get_user_count(self, obj):
         """Get active user count"""
         return obj.users.filter(is_active=True).count()
+
+
+class PaymentListSerializer(serializers.ModelSerializer):
+    """Read-only payment rows for agent / subscription tooling."""
+
+    church_name = serializers.CharField(source="church.name", read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = (
+            "id",
+            "church_id",
+            "church_name",
+            "amount",
+            "currency",
+            "reference",
+            "payment_method",
+            "status",
+            "subscription_plan",
+            "billing_cycle",
+            "payment_date",
+            "next_billing_date",
+            "payment_details",
+            "created_at",
+            "updated_at",
+        )
 
 
 class ChurchPlatformAccessSerializer(serializers.Serializer):

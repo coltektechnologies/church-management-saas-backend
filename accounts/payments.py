@@ -2,7 +2,10 @@ import hashlib
 import hmac
 import json
 import logging
+import threading
 import time
+import urllib.error
+import urllib.request
 from decimal import Decimal
 
 from django.conf import settings
@@ -25,6 +28,42 @@ from .models import Church, Payment, User
 from .paystack import PaystackAPI
 
 logger = logging.getLogger(__name__)
+
+
+def _trigger_churchagents_subscription_watchdog_async() -> None:
+    """
+    After Paystack charge.success, optionally ping churchagents to run SubscriptionWatchdog once.
+    Set CHURCHAGENTS_ORCHESTRATOR_URL and CHURCHAGENTS_INTERNAL_SECRET (same value as
+    ORCHESTRATOR_INTERNAL_SECRET in churchagents .env). Safe no-op if unset.
+    """
+    base = (getattr(settings, "CHURCHAGENTS_ORCHESTRATOR_URL", None) or "").strip()
+    secret = (getattr(settings, "CHURCHAGENTS_INTERNAL_SECRET", None) or "").strip()
+    if not base or not secret:
+        return
+
+    url = base.rstrip("/") + "/internal/trigger/subscription-watchdog"
+
+    def _run():
+        try:
+            req = urllib.request.Request(
+                url,
+                data=b"{}",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-ChurchAgents-Internal-Key": secret,
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                resp.read()
+        except urllib.error.HTTPError as e:
+            logger.warning(
+                "ChurchAgents watchdog trigger HTTP %s: %s", e.code, e.reason
+            )
+        except Exception as e:
+            logger.warning("ChurchAgents watchdog trigger failed: %s", e)
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 def verify_paystack_webhook(request):
@@ -314,6 +353,8 @@ def handle_successful_charge(data):
                 logger.info(
                     f"No Payment or Church for reference {reference} (likely registration - will be created on verify)"
                 )
+
+        _trigger_churchagents_subscription_watchdog_async()
 
         return JsonResponse({"status": "success"})
 

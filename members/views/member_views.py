@@ -259,8 +259,25 @@ class MemberCreateView(APIView):
                     login_username = getattr(
                         serializer, "generated_username", None
                     ) or serializer.validated_data.get("email")
-                    church = getattr(request.user, "church", None)
-                    if not church_can_use_sms_email(church, allow_initial_admin=False):
+                    church = getattr(member, "church", None) or getattr(
+                        request.user, "church", None
+                    )
+                    allow_staff_invite = False
+                    actor = request.user
+                    if actor.is_authenticated:
+                        if getattr(actor, "is_platform_admin", False):
+                            allow_staff_invite = True
+                        elif (
+                            getattr(actor, "church_id", None)
+                            and church
+                            and str(actor.church_id) == str(church.id)
+                        ):
+                            allow_staff_invite = True
+                    if not church_can_use_sms_email(
+                        church,
+                        allow_initial_admin=False,
+                        allow_staff_invite=allow_staff_invite,
+                    ):
                         response_data["credentials_delivery_queued"] = False
                         response_data["credentials_delivery_skipped_reason"] = (
                             "Outbound email and SMS are disabled for FREE-plan churches. "
@@ -277,6 +294,7 @@ class MemberCreateView(APIView):
                                 member_email,
                                 member_phone,
                                 login_username=login_username,
+                                allow_staff_invite=allow_staff_invite,
                             )
 
                         threading.Thread(target=_deliver, daemon=True).start()
@@ -305,10 +323,20 @@ class MemberView(APIView):
         dept_links = MemberDepartment.objects.filter(
             deleted_at__isnull=True
         ).select_related("department")
-        members = (
-            Member.objects.filter(church=request.user.church, deleted_at__isnull=True)
-            .prefetch_related("location")
-            .prefetch_related(Prefetch("memberdepartment_set", queryset=dept_links))
+        qs = Member.objects.filter(deleted_at__isnull=True)
+        if getattr(request.user, "is_platform_admin", False):
+            cid = request.query_params.get("church_id")
+            if cid:
+                qs = qs.filter(church_id=cid)
+            else:
+                # No tenant on platform user: return a recent slice across all churches
+                qs = qs.order_by("-created_at")[:500]
+        else:
+            if not request.user.church_id:
+                return Response([])
+            qs = qs.filter(church_id=request.user.church_id)
+        members = qs.prefetch_related("location").prefetch_related(
+            Prefetch("memberdepartment_set", queryset=dept_links)
         )
         serializer = MemberSerializer(members, many=True, context={"request": request})
         return Response(serializer.data)

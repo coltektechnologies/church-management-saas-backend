@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     "analytics",
     "files",
     "backup",
+    "agents.apps.AgentsConfig",
     # Third party apps
     "dal",
     "dal_select2",
@@ -96,10 +97,38 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "church_saas.wsgi.application"
 
+# Optional: churchagents FastAPI `orchestrator_server.py` deployed separately. When set,
+# POST /api/agents/ask/ proxies there; otherwise a small DB-backed fallback runs for common questions.
+CHURCHAGENTS_ORCHESTRATOR_URL = (
+    os.getenv("CHURCHAGENTS_ORCHESTRATOR_URL") or ""
+).rstrip("/")
+# Same secret as churchagents ORCHESTRATOR_INTERNAL_SECRET — used to POST /internal/trigger/* after Paystack.
+CHURCHAGENTS_INTERNAL_SECRET = os.getenv("CHURCHAGENTS_INTERNAL_SECRET", "")
+
 # Database - PostgreSQL
 DATABASE_URL = os.getenv("DATABASE_URL")
 if DATABASE_URL:
-    DATABASES = {"default": dj_database_url.parse(DATABASE_URL)}
+    # Render / managed Postgres expect TLS from outside the platform. Missing sslmode often
+    # surfaces as: "SSL connection has been closed unexpectedly". Override with DATABASE_SSL_REQUIRE=false
+    # only for a local Postgres that does not use SSL.
+    _ssl_default = (
+        os.getenv(
+            "DATABASE_SSL_REQUIRE",
+            (
+                "true"
+                if ("render.com" in DATABASE_URL or "neon.tech" in DATABASE_URL)
+                else "false"
+            ),
+        ).lower()
+        == "true"
+    )
+    DATABASES = {
+        "default": dj_database_url.parse(
+            DATABASE_URL,
+            conn_max_age=int(os.getenv("DATABASE_CONN_MAX_AGE", "0")),
+            ssl_require=_ssl_default,
+        )
+    }
 else:
     DATABASES = {
         "default": {
@@ -400,7 +429,9 @@ _DEFAULT_FRONTEND_LOGIN_URL = "https://opendoor-xi.vercel.app/login"
 FRONTEND_LOGIN_URL = os.getenv("FRONTEND_LOGIN_URL", _DEFAULT_FRONTEND_LOGIN_URL)
 FRONTEND_URL = os.getenv("FRONTEND_URL", FRONTEND_BASE_URL)
 
-# Email Configuration
+# Email Configuration (SMTP). SMS uses MNOTIFY_* separately — SMS can work while email fails
+# if EMAIL_HOST_PASSWORD is unset in the host environment (Render, etc.).
+# Gmail: use an App Password, not your normal login password.
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND", "django.core.mail.backends.smtp.EmailBackend"
 )
