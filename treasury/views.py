@@ -1354,24 +1354,42 @@ def get_treasury_statistics(request):
     """Get treasury statistics"""
     church = getattr(request, "current_church", None) or request.user.church
     church_id_param = request.query_params.get("church_id")
-    if (
-        church is None
-        and church_id_param
-        and getattr(request.user, "is_platform_admin", False)
-    ):
+    # Scope by ?church_id= for platform admins, home church, or treasury.view on that church
+    # (covers agent JWTs that pass church_id from tools without being platform admin).
+    if church is None and church_id_param:
+        user = request.user
         try:
-            church = Church.objects.get(pk=church_id_param, deleted_at__isnull=True)
+            candidate = Church.objects.get(pk=church_id_param, deleted_at__isnull=True)
         except Church.DoesNotExist:
             return Response(
                 {"error": "Church not found", "church_id": church_id_param},
                 status=status.HTTP_404_NOT_FOUND,
+            )
+        if getattr(user, "is_platform_admin", False):
+            church = candidate
+        elif getattr(user, "church_id", None) and str(user.church_id) == str(
+            church_id_param
+        ):
+            church = candidate
+        elif has_custom_permission(user, "treasury.view", church=candidate):
+            church = candidate
+        else:
+            return Response(
+                {
+                    "error": "Forbidden",
+                    "detail": "You do not have access to treasury statistics for this church.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
             )
 
     if not church:
         return Response(
             {
                 "error": "Church context required",
-                "hint": "Platform admins: add ?church_id=<uuid> to scope statistics to one church.",
+                "hint": (
+                    "Pass ?church_id=<uuid> for the congregation to scope. "
+                    "Requires platform admin, your home church, or an active role on that church."
+                ),
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
