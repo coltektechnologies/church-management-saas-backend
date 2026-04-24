@@ -1138,6 +1138,7 @@ class UserListSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     primary_role_name = serializers.SerializerMethodField()
     church_group_ids = serializers.SerializerMethodField()
+    is_account_locked = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -1156,6 +1157,9 @@ class UserListSerializer(serializers.ModelSerializer):
             "created_at",
             "primary_role_name",
             "church_group_ids",
+            "failed_login_attempts",
+            "account_locked_until",
+            "is_account_locked",
         ]
         read_only_fields = ["id"]
 
@@ -1173,6 +1177,10 @@ class UserListSerializer(serializers.ModelSerializer):
 
     def get_church_group_ids(self, obj):
         return [str(m.group_id) for m in obj.church_group_memberships.all()]
+
+    def get_is_account_locked(self, obj):
+        v = getattr(obj, "is_account_locked", False)
+        return bool(v() if callable(v) else v)
 
 
 class UserUpdateSerializer(serializers.ModelSerializer):

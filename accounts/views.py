@@ -346,6 +346,13 @@ class UserView(APIView):
                 type=openapi.TYPE_BOOLEAN,
                 required=False,
             ),
+            openapi.Parameter(
+                "locked_only",
+                openapi.IN_QUERY,
+                description="If true, only users currently locked after failed logins",
+                type=openapi.TYPE_BOOLEAN,
+                required=False,
+            ),
         ],
         responses={200: UserListSerializer(many=True), 401: "Unauthorized"},
         tags=["Users"],
@@ -369,6 +376,15 @@ class UserView(APIView):
         is_active = request.query_params.get("is_active")
         if is_active is not None:
             users = users.filter(is_active=is_active.lower() == "true")
+
+        locked_only = request.query_params.get("locked_only", "").lower() == "true"
+        if locked_only:
+            from django.utils import timezone as dj_tz
+
+            now = dj_tz.now()
+            users = users.filter(
+                account_locked_until__isnull=False, account_locked_until__gt=now
+            )
 
         active_role_qs = UserRole.objects.filter(is_active=True).select_related("role")
         users = users.select_related("church").prefetch_related(

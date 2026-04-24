@@ -28,6 +28,7 @@ class ActivityFeedSerializer(serializers.ModelSerializer):
             "user_display",
             "church",
             "church_name",
+            "ip_address",
             "created_at",
         ]
         read_only_fields = fields
