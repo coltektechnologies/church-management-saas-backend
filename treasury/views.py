@@ -605,6 +605,65 @@ class ExpenseTransactionDetailView(APIView):
 # ==========================================
 
 
+def resolve_treasury_church_for_request(
+    request,
+    *,
+    resource_label: str = "treasury data",
+    allow_unscoped_platform_admin: bool = False,
+):
+    """
+    Resolve church for treasury list/detail views.
+
+    Returns ``(church, error_response)``. ``church`` may be ``None`` only when
+    ``allow_unscoped_platform_admin`` is True and the user is a platform admin
+    (caller may list across all churches).
+    """
+    user = request.user
+    church = getattr(request, "current_church", None) or user.church
+    church_id_param = request.query_params.get("church_id")
+
+    if church is None and church_id_param:
+        try:
+            candidate = Church.objects.get(pk=church_id_param, deleted_at__isnull=True)
+        except Church.DoesNotExist:
+            return None, Response(
+                {"error": "Church not found", "church_id": church_id_param},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if getattr(user, "is_platform_admin", False):
+            church = candidate
+        elif getattr(user, "church_id", None) and str(user.church_id) == str(
+            church_id_param
+        ):
+            church = candidate
+        elif has_custom_permission(user, "treasury.view", church=candidate):
+            church = candidate
+        else:
+            return None, Response(
+                {
+                    "error": "Forbidden",
+                    "detail": f"You do not have access to {resource_label} for this church.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+    if church is None:
+        if allow_unscoped_platform_admin and getattr(user, "is_platform_admin", False):
+            return None, None
+        return None, Response(
+            {
+                "error": "Church context required",
+                "hint": (
+                    "Pass ?church_id=<uuid> for the congregation to scope. "
+                    "Requires platform admin, your home church, or treasury.view on that church."
+                ),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    return church, None
+
+
 class ExpenseRequestView(APIView):
     """List all expense requests or create a new one"""
 
@@ -639,16 +698,22 @@ class ExpenseRequestView(APIView):
         tags=["Treasury - Expense Requests"],
     )
     def get(self, request):
-        church = getattr(request, "current_church", None) or request.user.church
-
-        if not church:
-            return Response(
-                {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        requests_qs = ExpenseRequest.objects.filter(church=church).select_related(
-            "department", "category", "requested_by"
+        church, err = resolve_treasury_church_for_request(
+            request,
+            resource_label="expense requests",
+            allow_unscoped_platform_admin=True,
         )
+        if err:
+            return err
+
+        if church is not None:
+            requests_qs = ExpenseRequest.objects.filter(church=church).select_related(
+                "department", "category", "requested_by"
+            )
+        else:
+            requests_qs = ExpenseRequest.objects.filter(
+                deleted_at__isnull=True
+            ).select_related("department", "category", "requested_by", "church")
 
         # Apply filters
         status_filter = request.query_params.get("status")
@@ -1352,47 +1417,13 @@ class AssetDetailView(APIView):
 @permission_classes([IsAuthenticated])
 def get_treasury_statistics(request):
     """Get treasury statistics"""
-    church = getattr(request, "current_church", None) or request.user.church
-    church_id_param = request.query_params.get("church_id")
-    # Scope by ?church_id= for platform admins, home church, or treasury.view on that church
-    # (covers agent JWTs that pass church_id from tools without being platform admin).
-    if church is None and church_id_param:
-        user = request.user
-        try:
-            candidate = Church.objects.get(pk=church_id_param, deleted_at__isnull=True)
-        except Church.DoesNotExist:
-            return Response(
-                {"error": "Church not found", "church_id": church_id_param},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        if getattr(user, "is_platform_admin", False):
-            church = candidate
-        elif getattr(user, "church_id", None) and str(user.church_id) == str(
-            church_id_param
-        ):
-            church = candidate
-        elif has_custom_permission(user, "treasury.view", church=candidate):
-            church = candidate
-        else:
-            return Response(
-                {
-                    "error": "Forbidden",
-                    "detail": "You do not have access to treasury statistics for this church.",
-                },
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
-    if not church:
-        return Response(
-            {
-                "error": "Church context required",
-                "hint": (
-                    "Pass ?church_id=<uuid> for the congregation to scope. "
-                    "Requires platform admin, your home church, or an active role on that church."
-                ),
-            },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+    church, err = resolve_treasury_church_for_request(
+        request,
+        resource_label="treasury statistics",
+        allow_unscoped_platform_admin=False,
+    )
+    if err:
+        return err
 
     # Date range
     start_date = request.query_params.get("start_date")
