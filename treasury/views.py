@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import Church
 from accounts.models.base_models import AuditLog
 from accounts.permissions import has_permission as has_custom_permission
 
@@ -1352,10 +1353,27 @@ class AssetDetailView(APIView):
 def get_treasury_statistics(request):
     """Get treasury statistics"""
     church = getattr(request, "current_church", None) or request.user.church
+    church_id_param = request.query_params.get("church_id")
+    if (
+        church is None
+        and church_id_param
+        and getattr(request.user, "is_platform_admin", False)
+    ):
+        try:
+            church = Church.objects.get(pk=church_id_param, deleted_at__isnull=True)
+        except Church.DoesNotExist:
+            return Response(
+                {"error": "Church not found", "church_id": church_id_param},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
     if not church:
         return Response(
-            {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
+            {
+                "error": "Church context required",
+                "hint": "Platform admins: add ?church_id=<uuid> to scope statistics to one church.",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     # Date range

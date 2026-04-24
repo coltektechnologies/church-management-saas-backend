@@ -5,6 +5,7 @@ from django.urls import include, path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
+from rest_framework_simplejwt.views import TokenRefreshView
 
 # Enhanced Swagger schema view
 schema_view = get_schema_view(
@@ -74,7 +75,10 @@ urlpatterns = [
     # ==========================================
     # API ENDPOINTS
     # ==========================================
+    # JWT refresh (SimpleJWT); login issues tokens via accounts.LoginAPIView
+    path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
     # API Endpoints
+    path("api/agents/", include("agents.urls")),
     path("api/auth/", include("accounts.urls")),
     path("api/members/", include("members.urls")),
     path("api/announcements/", include("announcements.urls")),

@@ -3,13 +3,19 @@ from decimal import Decimal
 from django.db.models import Sum
 from rest_framework import serializers
 
-from departments.serializers import (DepartmentListSerializer,
-                                     ProgramListSerializer)
+from departments.models import Department
+from departments.serializers import DepartmentListSerializer, ProgramListSerializer
 from members.serializers import MemberListSerializer
 
-from .models import (Asset, ExpenseCategory, ExpenseRequest,
-                     ExpenseTransaction, IncomeAllocation, IncomeCategory,
-                     IncomeTransaction)
+from .models import (
+    Asset,
+    ExpenseCategory,
+    ExpenseRequest,
+    ExpenseTransaction,
+    IncomeAllocation,
+    IncomeCategory,
+    IncomeTransaction,
+)
 
 # ==========================================
 # INCOME CATEGORY SERIALIZERS
@@ -322,60 +328,15 @@ class ExpenseTransactionDetailSerializer(serializers.ModelSerializer):
         queryset=ExpenseCategory.objects.all(), source="category", write_only=True
     )
     department = DepartmentListSerializer(read_only=True)
-    department_id = serializers.UUIDField(
-        write_only=True, required=False, allow_null=True
+    department_id = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.none(),
+        source="department",
+        write_only=True,
     )
     recorded_by_name = serializers.SerializerMethodField()
     payment_method_display = serializers.CharField(
         source="get_payment_method_display", read_only=True
     )
-
-    def create(self, validated_data):
-        from departments.models import Department
-
-        # Extract and remove department_id from validated_data
-        department_id = validated_data.pop("department_id", None)
-
-        # Create the instance
-        instance = super().create(validated_data)
-
-        # Set department if provided
-        if department_id:
-            try:
-                department = Department.objects.get(
-                    id=department_id, church=instance.church
-                )
-                instance.department = department
-                instance.save()
-            except Department.DoesNotExist:
-                pass
-
-        return instance
-
-    def update(self, instance, validated_data):
-        from departments.models import Department
-
-        # Extract and remove department_id from validated_data
-        department_id = validated_data.pop("department_id", None)
-
-        # Update the instance
-        instance = super().update(instance, validated_data)
-
-        # Update department if provided
-        if department_id is not None:  # Could be None to clear the department
-            if department_id:
-                try:
-                    department = Department.objects.get(
-                        id=department_id, church=instance.church
-                    )
-                    instance.department = department
-                except Department.DoesNotExist:
-                    pass
-            else:
-                instance.department = None
-            instance.save()
-
-        return instance
 
     class Meta:
         model = ExpenseTransaction
@@ -419,13 +380,14 @@ class ExpenseTransactionDetailSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         request = self.context.get("request")
         if request:
-            from departments.models import Department
-
             church = getattr(request, "current_church", None) or getattr(
                 request.user, "church", None
             )
             if church:
                 self.fields["department_id"].queryset = Department.objects.filter(
+                    church=church
+                )
+                self.fields["category_id"].queryset = ExpenseCategory.objects.filter(
                     church=church
                 )
 

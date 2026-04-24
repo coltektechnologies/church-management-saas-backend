@@ -42,6 +42,27 @@ from notifications.services import (
     TemplateService,
 )
 
+
+def _church_context_or_error(request):
+    """
+    Tenant for outbound SMS/email logs. Regular users use user.church; platform admins
+    must scope via ChurchContextMiddleware (X-Church-ID or ?church_id=).
+    """
+    church = getattr(request, "current_church", None) or request.user.church
+    if church is None:
+        return None, Response(
+            {
+                "detail": (
+                    "Missing church context. For platform administrator API tokens, send "
+                    "header X-Church-ID with the church UUID or add ?church_id=<uuid> to the URL. "
+                    "Church user accounts are scoped automatically."
+                )
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return church, None
+
+
 # ==========================================
 # NOTIFICATION VIEWSET
 # ==========================================
@@ -401,7 +422,9 @@ class SendSMSView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        church = request.current_church or request.user.church
+        church, church_err = _church_context_or_error(request)
+        if church_err:
+            return church_err
         from accounts.notification_utils import church_can_use_sms_email
 
         if not church_can_use_sms_email(church, allow_initial_admin=False):
@@ -494,7 +517,9 @@ class SendEmailView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        church = request.current_church or request.user.church
+        church, church_err = _church_context_or_error(request)
+        if church_err:
+            return church_err
         from accounts.notification_utils import church_can_use_sms_email
 
         if not church_can_use_sms_email(church, allow_initial_admin=False):
@@ -560,7 +585,9 @@ class BulkNotificationView(APIView):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        church = request.current_church or request.user.church
+        church, church_err = _church_context_or_error(request)
+        if church_err:
+            return church_err
         from accounts.notification_utils import church_can_use_sms_email
 
         wants_sms = serializer.validated_data.get("send_sms", False)
@@ -723,7 +750,9 @@ class TestNotificationView(APIView):
         channel = request.data.get("channel", "in_app")
         message = request.data.get("message", "This is a test notification")
 
-        church = request.current_church or request.user.church
+        church, church_err = _church_context_or_error(request)
+        if church_err:
+            return church_err
         from accounts.notification_utils import church_can_use_sms_email
 
         if channel in ("sms", "email") and not church_can_use_sms_email(

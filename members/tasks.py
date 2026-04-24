@@ -15,6 +15,8 @@ def run_member_credentials_delivery(
     member_email: str | None,
     member_phone: str | None,
     login_username: str | None = None,
+    *,
+    allow_staff_invite: bool = False,
 ):
     """Send new-member login credentials via email and/or SMS (thread, worker, or eager Celery)."""
     from members.models import Member
@@ -32,6 +34,7 @@ def run_member_credentials_delivery(
                     member_email,
                     password,
                     allow_initial_admin=False,
+                    allow_staff_invite=allow_staff_invite,
                 )
             except Exception:
                 logger.exception(
@@ -44,6 +47,7 @@ def run_member_credentials_delivery(
                 password,
                 member_email,
                 allow_initial_admin=False,
+                allow_staff_invite=allow_staff_invite,
                 login_username=login_username,
             )
             if not sms_result.get("success"):
@@ -67,6 +71,7 @@ def deliver_member_credentials_task(
     member_email: str | None,
     member_phone: str | None,
     login_username: str | None = None,
+    allow_staff_invite: bool = False,
 ):
     """Celery entrypoint — same behavior as run_member_credentials_delivery."""
     run_member_credentials_delivery(
@@ -77,4 +82,5 @@ def deliver_member_credentials_task(
         member_email,
         member_phone,
         login_username=login_username,
+        allow_staff_invite=allow_staff_invite,
     )
