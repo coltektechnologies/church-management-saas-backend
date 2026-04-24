@@ -56,9 +56,35 @@ class ChurchContextMiddleware(MiddlewareMixin):
                     from accounts.models import Church
 
                     try:
-                        request.current_church = Church.objects.get(id=church_id)
-                    except (Church.DoesNotExist, Exception):
+                        request.current_church = Church.objects.get(
+                            pk=church_id, deleted_at__isnull=True
+                        )
+                    except (Church.DoesNotExist, ValueError, TypeError):
                         pass
             else:
-                # Regular users are always scoped to their own church
-                request.current_church = user.church
+                # Default: home church. Optional ?church_id= / X-Church-ID when it matches the
+                # user's church or an active UserRole (agent JWTs, multi-church staff).
+                church_id = request.GET.get("church_id") or request.headers.get(
+                    "X-Church-ID"
+                )
+                if church_id:
+                    from accounts.models import Church
+                    from accounts.permissions import has_permission
+
+                    try:
+                        candidate = Church.objects.get(
+                            pk=church_id, deleted_at__isnull=True
+                        )
+                    except Church.DoesNotExist:
+                        request.current_church = user.church
+                    else:
+                        if getattr(user, "church_id", None) and str(
+                            user.church_id
+                        ) == str(church_id):
+                            request.current_church = candidate
+                        elif has_permission(user, "treasury.view", church=candidate):
+                            request.current_church = candidate
+                        else:
+                            request.current_church = user.church
+                else:
+                    request.current_church = user.church

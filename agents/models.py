@@ -27,6 +27,7 @@ class AgentLog(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = "agents"
         db_table = "agent_logs"
         ordering = ("-created_at",)
 
@@ -52,6 +53,7 @@ class AgentAlert(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
+        app_label = "agents"
         db_table = "agent_alerts"
         ordering = ("-created_at",)
 

@@ -46,7 +46,8 @@ INSTALLED_APPS = [
     "analytics",
     "files",
     "backup",
-    "agents.apps.AgentsConfig",
+    # Agent logs/alerts — must stay in sync with `path("api/agents/", ...)` in urls.py
+    "agents",
     # Third party apps
     "dal",
     "dal_select2",
