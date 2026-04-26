@@ -711,9 +711,10 @@ class ExpenseRequestView(APIView):
                 "department", "category", "requested_by"
             )
         else:
-            requests_qs = ExpenseRequest.objects.filter(
-                deleted_at__isnull=True
-            ).select_related("department", "category", "requested_by", "church")
+            # Platform-wide listing for admins; ExpenseRequest has no soft-delete (deleted_at) field.
+            requests_qs = ExpenseRequest.objects.all().select_related(
+                "department", "category", "requested_by", "church"
+            )
 
         # Apply filters
         status_filter = request.query_params.get("status")
