@@ -84,6 +84,11 @@ class ChurchContextMiddleware(MiddlewareMixin):
                             request.current_church = candidate
                         elif has_permission(user, "treasury.view", church=candidate):
                             request.current_church = candidate
+                        elif has_permission(
+                            user, "treasury.approve_expense", church=candidate
+                        ):
+                            # Treasurers may have approve without list permission; must scope to ?church_id=.
+                            request.current_church = candidate
                         else:
                             request.current_church = user.church
                 else:

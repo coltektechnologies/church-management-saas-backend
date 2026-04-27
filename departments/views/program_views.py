@@ -11,11 +11,18 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.response import Response
 
+from accounts.models import Church
+from accounts.permissions import has_permission as has_custom_permission
 from members.models import Member
 from notifications.models import Notification
 from notifications.services.email_service import EmailService
 
 from ..models import Program, ProgramBudgetItem
+from ..program_review_access import (
+    user_can_review_program_as_elder,
+    user_can_review_program_as_secretariat,
+    user_can_review_program_as_treasury,
+)
 from ..serializers import (
     ProgramApproveRejectSerializer,
     ProgramBudgetItemCreateSerializer,
@@ -31,11 +38,26 @@ class IsProgramCreatorOrReadOnly(BasePermission):
     """
     Custom permission to only allow creators of a program to edit it,
     and only if it's in draft or rejected state.
+
+    POST workflow actions (submit, multi-office review) perform their own checks inside
+    the view; object-level creator/draft rules would incorrectly block elders in charge,
+    department heads submitting, secretariat, etc.
     """
+
+    _ACTIONS_WITH_OWN_OBJECT_AUTH = frozenset(
+        {
+            "review_program",
+            "submit_program",
+        }
+    )
 
     def has_object_permission(self, request, view, obj):
         # Read permissions are allowed to any request
         if request.method in ["GET", "HEAD", "OPTIONS"]:
+            return True
+
+        action = getattr(view, "action", None)
+        if action in self._ACTIONS_WITH_OWN_OBJECT_AUTH:
             return True
 
         # Only allow updates if program is in draft or rejected state
@@ -89,7 +111,9 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
             return Program.objects.none()
 
         user = self.request.user
-        queryset = Program.objects.all()
+        queryset = Program.objects.select_related(
+            "department", "department__elder_in_charge"
+        ).all()
 
         # Filter by department from nested URL or query param
         department_id = self.kwargs.get(
@@ -113,6 +137,21 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
         # Regular users can only see programs from their church
         if hasattr(user, "church") and user.church:
             return queryset.filter(church=user.church)
+
+        # Users without a church FK (some role logins) may still have treasury.view on a church;
+        # allow scoped listing when ?church_id= matches that permission (same idea as expense lists).
+        church_id_qp = self.request.query_params.get("church_id")
+        if church_id_qp:
+            try:
+                candidate = Church.objects.get(pk=church_id_qp, deleted_at__isnull=True)
+            except Church.DoesNotExist:
+                return Program.objects.none()
+            if has_custom_permission(
+                user, "treasury.view", church=candidate
+            ) or has_custom_permission(
+                user, "treasury.approve_expense", church=candidate
+            ):
+                return queryset.filter(church_id=church_id_qp)
 
         return Program.objects.none()
 
@@ -286,21 +325,12 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
 
         # Permission checks
         if department == "ELDER":
-            # Must be: staff, OR department's elder_in_charge, OR in Elder group
-            is_dept_elder = False
-            if (
-                program.department.elder_in_charge_id
-                and program.department.elder_in_charge.system_user_id
-            ):
-                is_dept_elder = str(
-                    program.department.elder_in_charge.system_user_id
-                ) == str(user.id)
-            is_elder_group = user.groups.filter(name__icontains="Elder").exists()
-            if not (user.is_staff or is_dept_elder or is_elder_group):
+            if not user_can_review_program_as_elder(user, program):
                 return Response(
                     {
                         "detail": "You don't have permission to review as Department Elder. "
-                        "You must be the elder in charge of this department, in the Elder group, or staff."
+                        "You must be the elder in charge of this department, in the Elder group, "
+                        "or hold the departments.approve_programs permission for this church."
                     },
                     status=status.HTTP_403_FORBIDDEN,
                 )
@@ -310,7 +340,7 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         elif department == "SECRETARIAT":
-            if not (user.is_staff or user.groups.filter(name="Secretariat").exists()):
+            if not user_can_review_program_as_secretariat(user, program):
                 return Response(
                     {"detail": "You don't have permission to review for Secretariat"},
                     status=status.HTTP_403_FORBIDDEN,
@@ -321,7 +351,7 @@ class ProgramViewSet(ProgramStepViewSetMixin, viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
         elif department == "TREASURY":
-            if not (user.is_staff or user.groups.filter(name="Treasury").exists()):
+            if not user_can_review_program_as_treasury(user, program):
                 return Response(
                     {"detail": "You don't have permission to review for Treasury"},
                     status=status.HTTP_403_FORBIDDEN,

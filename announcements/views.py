@@ -211,21 +211,22 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError("User is not associated with any church.")
 
     def _can_approve_announcement(self, request) -> bool:
-        # Keep staff/superuser behavior, while enforcing role permission for non-staff users.
         return bool(
-            request.user.is_staff
-            or request.user.is_superuser
+            request.user.is_superuser
+            or getattr(request.user, "is_platform_admin", False)
             or has_custom_permission(request.user, "secretariat.approve_announcement")
         )
 
     def _may_approve_or_publish_own_announcement(self, request, announcement) -> bool:
         """
-        Approving/publishing your own post is only allowed for Secretariat creators (or Django staff).
-        Everyone else must have another officer approve/publish their announcement.
+        Approving/publishing your own post is only allowed for Secretariat creators (or platform
+        superuser / platform admin). Everyone else must have another officer approve/publish.
         """
         if announcement.created_by_id != request.user.id:
             return True
-        if request.user.is_staff or request.user.is_superuser:
+        if request.user.is_superuser or getattr(
+            request.user, "is_platform_admin", False
+        ):
             return True
         church = getattr(request.user, "church", None)
         if not church:

@@ -10,10 +10,62 @@ Flow: SUBMITTED → DEPT_HEAD_APPROVED → FIRST_ELDER_APPROVED → APPROVED (tr
 import logging
 
 from django.db.models import Q
+from django.utils import timezone
 
 from departments.approval_notifications import _get_phone_for_user
 
 logger = logging.getLogger(__name__)
+
+
+def mark_expense_stage_notifications_read(expense_request, stage: str) -> int:
+    """
+    Mark in-app FINANCE notifications for this expense as read when a workflow step is done.
+
+    ``stage``: ``department`` | ``first_elder`` | ``treasurer`` | ``all``
+    (``all`` is used on rejection to clear every pending step for this request_number).
+    """
+    from notifications.models import Notification
+
+    ref = (getattr(expense_request, "request_number", None) or "").strip()
+    church_id = getattr(expense_request, "church_id", None)
+    if not ref or not church_id:
+        return 0
+
+    prefix = f"Expense request {ref}"
+    qs = Notification.objects.filter(
+        church_id=church_id,
+        category="FINANCE",
+        is_read=False,
+        title__startswith=prefix,
+        status__in=["SENT", "PENDING"],
+    )
+    if stage == "department":
+        qs = qs.filter(
+            Q(title__icontains="needs department approval")
+            | Q(title__icontains="no dept head found")
+        )
+    elif stage == "first_elder":
+        qs = qs.filter(
+            Q(title__icontains="needs First Elder")
+            | Q(title__icontains="configure First Elder")
+        )
+    elif stage == "treasurer":
+        qs = qs.filter(title__icontains="treasurer approval")
+    elif stage == "all":
+        pass
+    else:
+        return 0
+
+    now = timezone.now()
+    updated = qs.update(is_read=True, read_at=now, status="READ")
+    if updated:
+        logger.debug(
+            "Marked %s expense FINANCE notifications read (stage=%s, ref=%s)",
+            updated,
+            stage,
+            ref,
+        )
+    return updated
 
 
 def _send_expense_notice(
@@ -217,7 +269,8 @@ def _notify_first_elder_stage(expense_request, notified_ids, can_sms):
 
 def _notify_treasury_stage(expense_request, notified_ids, can_sms):
     """FIRST_ELDER_APPROVED — treasury final approval."""
-    from accounts.models import User
+    from accounts.models import ChurchGroupMember, User, UserRole
+    from accounts.permissions import has_permission
 
     church = expense_request.church
     ref, purpose, base_msg = _base_message_parts(expense_request)
@@ -235,10 +288,52 @@ def _notify_treasury_stage(expense_request, notified_ids, can_sms):
     )
     sms = f"{ref}: treasurer approval needed. {purpose[:50]}."
 
+    # Users tied to this church via roles (includes treasurers with UserRole only).
+    candidate_ids = set(
+        UserRole.objects.filter(church=church, is_active=True).values_list(
+            "user_id", flat=True
+        )
+    )
+    candidate_ids.update(
+        ChurchGroupMember.objects.filter(group__church=church).values_list(
+            "user_id", flat=True
+        )
+    )
+
+    for uid in candidate_ids:
+        try:
+            user = User.objects.get(pk=uid, is_active=True)
+        except User.DoesNotExist:
+            continue
+        if not has_permission(user, "treasury.approve_expense", church=church):
+            continue
+        _send_expense_notice(
+            church=church,
+            user=user,
+            title=title,
+            message=msg,
+            sms_body=sms,
+            notified_ids=notified_ids,
+            can_sms=can_sms,
+        )
+
+    # Legacy: Django auth group "Treasury" on this church (may not use RolePermission).
     for user in User.objects.filter(
-        Q(groups__name="Treasury") | Q(is_staff=True) | Q(is_superuser=True),
-        church=church,
-        is_active=True,
+        groups__name="Treasury", church=church, is_active=True
+    ).distinct():
+        _send_expense_notice(
+            church=church,
+            user=user,
+            title=title,
+            message=msg,
+            sms_body=sms,
+            notified_ids=notified_ids,
+            can_sms=can_sms,
+        )
+
+    # Church-scoped superusers only (avoid notifying every staff user on the church).
+    for user in User.objects.filter(
+        is_superuser=True, church=church, is_active=True
     ).distinct():
         _send_expense_notice(
             church=church,
@@ -279,6 +374,7 @@ def notify_expense_request_submit(expense_request):
     if status == "SUBMITTED":
         _notify_department_stage(expense_request, notified_ids, can_sms)
     elif status == "DEPT_HEAD_APPROVED":
+        mark_expense_stage_notifications_read(expense_request, "department")
         _notify_first_elder_stage(expense_request, notified_ids, can_sms)
 
 
@@ -293,6 +389,7 @@ def notify_expense_request_after_dept_head(expense_request):
     can_sms = church_can_use_sms_email(
         expense_request.church, allow_initial_admin=False
     )
+    mark_expense_stage_notifications_read(expense_request, "department")
     _notify_first_elder_stage(expense_request, notified_ids, can_sms)
 
 
@@ -307,4 +404,18 @@ def notify_expense_request_after_first_elder(expense_request):
     can_sms = church_can_use_sms_email(
         expense_request.church, allow_initial_admin=False
     )
+    mark_expense_stage_notifications_read(expense_request, "first_elder")
     _notify_treasury_stage(expense_request, notified_ids, can_sms)
+
+
+def notify_expense_request_after_treasurer(expense_request):
+    """After final treasurer approval — clear stale 'treasurer approval' in-app notices."""
+    expense_request.refresh_from_db()
+    if expense_request.status != "APPROVED":
+        return
+    mark_expense_stage_notifications_read(expense_request, "treasurer")
+
+
+def clear_expense_request_workflow_notifications(expense_request):
+    """On rejection (any stage): mark all pending FINANCE inbox rows for this request as read."""
+    mark_expense_stage_notifications_read(expense_request, "all")

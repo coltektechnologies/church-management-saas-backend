@@ -20,6 +20,11 @@ from .models import (
     ProgramBudgetItem,
     ProgramDocument,
 )
+from .program_review_access import (
+    user_can_review_program_as_elder,
+    user_can_review_program_as_secretariat,
+    user_can_review_program_as_treasury,
+)
 
 # ==========================================
 # INLINE ADMINS
@@ -1089,31 +1094,26 @@ class ProgramAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
     def _can_approve_elder(self, request, program):
-        if request.user.is_staff:
-            return True
-        if request.user.groups.filter(name__icontains="Elder").exists():
-            return True
-        elder = getattr(program.department, "elder_in_charge", None)
-        if (
-            elder
-            and elder.system_user_id
-            and str(elder.system_user_id) == str(request.user.id)
-        ):
-            return True
-        return False
+        return user_can_review_program_as_elder(request.user, program)
 
-    def _can_approve_secretariat(self, request):
+    def _can_approve_secretariat(self, request, program=None):
+        if program is not None:
+            return user_can_review_program_as_secretariat(request.user, program)
         return (
-            request.user.is_staff
-            or request.user.groups.filter(name="Secretariat").exists()
+            request.user.groups.filter(name="Secretariat").exists()
             or request.user.has_perm("departments.approve_secretariat")
+            or getattr(request.user, "is_superuser", False)
+            or getattr(request.user, "is_platform_admin", False)
         )
 
-    def _can_approve_treasury(self, request):
+    def _can_approve_treasury(self, request, program=None):
+        if program is not None:
+            return user_can_review_program_as_treasury(request.user, program)
         return (
-            request.user.is_staff
-            or request.user.groups.filter(name="Treasury").exists()
+            request.user.groups.filter(name="Treasury").exists()
             or request.user.has_perm("departments.approve_treasury")
+            or getattr(request.user, "is_superuser", False)
+            or getattr(request.user, "is_platform_admin", False)
         )
 
     def approve_elder_view(self, request, object_id):
@@ -1149,7 +1149,7 @@ class ProgramAdmin(admin.ModelAdmin):
 
     def approve_secretariat_view(self, request, object_id):
         program = get_object_or_404(Program, pk=object_id)
-        if not self._can_approve_secretariat(request):
+        if not self._can_approve_secretariat(request, program):
             messages.error(
                 request, "You don't have permission to approve for Secretariat."
             )
@@ -1181,7 +1181,7 @@ class ProgramAdmin(admin.ModelAdmin):
 
     def approve_treasury_view(self, request, object_id):
         program = get_object_or_404(Program, pk=object_id)
-        if not self._can_approve_treasury(request):
+        if not self._can_approve_treasury(request, program):
             messages.error(
                 request, "You don't have permission to approve for Treasury."
             )
@@ -1215,8 +1215,8 @@ class ProgramAdmin(admin.ModelAdmin):
         program = get_object_or_404(Program, pk=object_id)
         can_reject = (
             self._can_approve_elder(request, program)
-            or self._can_approve_secretariat(request)
-            or self._can_approve_treasury(request)
+            or self._can_approve_secretariat(request, program)
+            or self._can_approve_treasury(request, program)
         )
         if not can_reject:
             messages.error(request, "You don't have permission to reject this program.")
@@ -1253,21 +1253,21 @@ class ProgramAdmin(admin.ModelAdmin):
                     and not program.elder_approved
                 )
                 extra_context["can_approve_secretariat"] = (
-                    self._can_approve_secretariat(request)
+                    self._can_approve_secretariat(request, program)
                     and program.status == "ELDER_APPROVED"
                     and program.submitted_to_secretariat
                     and not program.secretariat_approved
                 )
                 extra_context["can_approve_treasury"] = (
-                    self._can_approve_treasury(request)
+                    self._can_approve_treasury(request, program)
                     and program.status == "SECRETARIAT_APPROVED"
                     and program.submitted_to_treasury
                     and not program.treasury_approved
                 )
                 extra_context["can_reject"] = (
                     self._can_approve_elder(request, program)
-                    or self._can_approve_secretariat(request)
-                    or self._can_approve_treasury(request)
+                    or self._can_approve_secretariat(request, program)
+                    or self._can_approve_treasury(request, program)
                 )
                 extra_context["approve_elder_url"] = reverse(
                     "admin:departments_program_approve_elder", args=[object_id]

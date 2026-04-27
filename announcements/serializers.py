@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from accounts.permissions import has_permission as has_custom_permission
+
 from .models import (
     Announcement,
     AnnouncementAttachment,
@@ -72,6 +74,7 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display")
     priority_display = serializers.CharField(source="get_priority_display")
     attachment_count = serializers.SerializerMethodField()
+    can_approve = serializers.SerializerMethodField()
 
     class Meta:
         model = Announcement
@@ -91,10 +94,23 @@ class AnnouncementListSerializer(serializers.ModelSerializer):
             "category",
             "created_by",
             "attachment_count",
+            "can_approve",
         ]
 
     def get_attachment_count(self, obj):
         return obj.attachments.count()
+
+    def get_can_approve(self, obj):
+        request = self.context.get("request")
+        if not request or not getattr(request.user, "is_authenticated", False):
+            return False
+        user = request.user
+        if user.is_superuser or getattr(user, "is_platform_admin", False):
+            return True
+        church = getattr(obj, "church", None) or getattr(user, "church", None)
+        if not church:
+            return False
+        return has_custom_permission(user, "secretariat.approve_announcement", church)
 
 
 class AnnouncementDetailSerializer(serializers.ModelSerializer):

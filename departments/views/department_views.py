@@ -686,11 +686,19 @@ class MemberDepartmentViewSet(viewsets.ModelViewSet):
         if getattr(self, "swagger_fake_view", False):
             return MemberDepartment.objects.none()
 
-        queryset = MemberDepartment.objects.all()
+        queryset = MemberDepartment.objects.all().order_by(
+            "department_id", "member_id", "pk"
+        )
 
         # Filter by church if user is not superuser
         if not self.request.user.is_superuser:
-            queryset = queryset.filter(department__church=self.request.user.church)
+            church = (
+                getattr(self.request, "current_church", None)
+                or self.request.user.church
+            )
+            if not church:
+                return MemberDepartment.objects.none()
+            queryset = queryset.filter(department__church=church)
 
         return queryset
 

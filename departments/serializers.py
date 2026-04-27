@@ -16,6 +16,11 @@ from .models import (
     Program,
     ProgramBudgetItem,
 )
+from .program_review_access import (
+    user_can_review_program_as_elder,
+    user_can_review_program_as_secretariat,
+    user_can_review_program_as_treasury,
+)
 from .services.portal_user_roles import (
     after_primary_department_head_change,
     reconcile_elder_in_charge_user_role,
@@ -559,6 +564,90 @@ class ProgramBudgetItemCreateSerializer(ProgramBudgetItemSerializer):
 # PROGRAM SERIALIZERS
 # ==========================================
 
+_ELDER_DONE_STATUSES = frozenset(
+    {
+        "ELDER_APPROVED",
+        "SECRETARIAT_APPROVED",
+        "TREASURY_APPROVED",
+        "APPROVED",
+        "IN_PROGRESS",
+        "COMPLETED",
+    }
+)
+
+
+def program_approval_chain(obj) -> dict:
+    """
+    Linear approval chain for programs (Elder → Secretariat → Treasury), honoring
+    submission_type flags. Used by list API and admin Approval Center.
+    """
+    dept = getattr(obj, "department", None)
+    elder_hint = None
+    if dept and getattr(dept, "elder_in_charge", None):
+        elder_hint = dept.elder_in_charge.full_name
+
+    elder_required = obj.status not in ("DRAFT", "CANCELLED")
+    elder_done = bool(obj.elder_approved) or obj.status in _ELDER_DONE_STATUSES
+
+    sec_required = bool(obj.submitted_to_secretariat)
+    sec_done = bool(obj.secretariat_approved)
+
+    tre_required = bool(obj.submitted_to_treasury)
+    tre_done = bool(obj.treasury_approved)
+
+    def _iso(dt):
+        return dt.isoformat() if dt else None
+
+    return {
+        "elder": {
+            "required": elder_required,
+            "approved": elder_done,
+            "approved_at": _iso(obj.elder_approved_at),
+            "hint": elder_hint,
+        },
+        "secretariat": {
+            "required": sec_required,
+            "approved": sec_done,
+            "approved_at": _iso(obj.secretariat_approved_at),
+            "hint": None,
+        },
+        "treasury": {
+            "required": tre_required,
+            "approved": tre_done,
+            "approved_at": _iso(obj.treasury_approved_at),
+            "hint": None,
+        },
+    }
+
+
+def program_pending_step(obj) -> dict:
+    """Who must act next on this program (for list API / UI)."""
+    st = (obj.status or "").strip()
+    if st == "REJECTED":
+        return {"code": "REJECTED", "label": "Rejected — no further approvals"}
+    if st == "DRAFT":
+        return {"code": "DRAFT", "label": "Draft — submit to start the chain"}
+    if st == "SUBMITTED":
+        return {"code": "ELDER", "label": "Department elder in charge"}
+    if st == "ELDER_APPROVED":
+        if obj.submitted_to_secretariat and not obj.secretariat_approved:
+            return {"code": "SECRETARIAT", "label": "Secretariat"}
+        if obj.submitted_to_treasury and not obj.treasury_approved:
+            return {"code": "TREASURY", "label": "Treasury"}
+        return {
+            "code": "NONE",
+            "label": "No further office approvals required for this submission",
+        }
+    if st == "SECRETARIAT_APPROVED":
+        if obj.submitted_to_treasury and not obj.treasury_approved:
+            return {"code": "TREASURY", "label": "Treasury"}
+        return {"code": "NONE", "label": "No treasury step — complete"}
+    if st in ("TREASURY_APPROVED", "APPROVED", "IN_PROGRESS", "COMPLETED"):
+        return {"code": "DONE", "label": "Approval chain complete"}
+    if st == "CANCELLED":
+        return {"code": "CANCELLED", "label": "Cancelled"}
+    return {"code": st or "UNKNOWN", "label": obj.get_status_display()}
+
 
 class ProgramListSerializer(serializers.ModelSerializer):
     """Lightweight program list"""
@@ -567,6 +656,9 @@ class ProgramListSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     budget_summary = serializers.SerializerMethodField()
     requires_approval = serializers.SerializerMethodField()
+    approval_chain = serializers.SerializerMethodField()
+    pending_step = serializers.SerializerMethodField()
+    review_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = Program
@@ -586,8 +678,13 @@ class ProgramListSerializer(serializers.ModelSerializer):
             "budget_summary",
             "submission_type",
             "requires_approval",
+            "submitted_to_secretariat",
+            "submitted_to_treasury",
             "submitted_at",
             "approved_at",
+            "approval_chain",
+            "pending_step",
+            "review_permissions",
         ]
 
     def get_budget_summary(self, obj):
@@ -600,6 +697,23 @@ class ProgramListSerializer(serializers.ModelSerializer):
         if obj.submitted_to_treasury and not obj.treasury_approved:
             needs.append("TREASURY")
         return needs
+
+    def get_approval_chain(self, obj):
+        return program_approval_chain(obj)
+
+    def get_pending_step(self, obj):
+        return program_pending_step(obj)
+
+    def get_review_permissions(self, obj):
+        request = self.context.get("request")
+        if not request or not getattr(request.user, "is_authenticated", False):
+            return {"elder": False, "secretariat": False, "treasury": False}
+        user = request.user
+        return {
+            "elder": user_can_review_program_as_elder(user, obj),
+            "secretariat": user_can_review_program_as_secretariat(user, obj),
+            "treasury": user_can_review_program_as_treasury(user, obj),
+        }
 
 
 class ProgramDetailSerializer(serializers.ModelSerializer):

@@ -1,12 +1,20 @@
 from decimal import Decimal
 
+from django.db import transaction
 from django.db.models import Sum
+from django.utils import timezone
 from rest_framework import serializers
 
+from accounts.models.base_models import AuditLog
 from departments.models import Department
 from departments.serializers import DepartmentListSerializer, ProgramListSerializer
 from members.serializers import MemberListSerializer
 
+from .expense_approval_access import (
+    can_approve_expense_as_dept_head_or_elder,
+    can_approve_expense_as_first_elder,
+    can_approve_expense_as_treasurer,
+)
 from .models import (
     Asset,
     ExpenseCategory,
@@ -16,6 +24,17 @@ from .models import (
     IncomeCategory,
     IncomeTransaction,
 )
+
+
+def expense_review_permissions(request, obj):
+    if not request or not getattr(request.user, "is_authenticated", False):
+        return {"dept_head": False, "first_elder": False, "treasurer": False}
+    return {
+        "dept_head": can_approve_expense_as_dept_head_or_elder(request, obj),
+        "first_elder": can_approve_expense_as_first_elder(request, obj),
+        "treasurer": can_approve_expense_as_treasurer(request, obj),
+    }
+
 
 # ==========================================
 # INCOME CATEGORY SERIALIZERS
@@ -414,12 +433,26 @@ class ExpenseTransactionDetailSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    @transaction.atomic
     def create(self, validated_data):
         request = self.context.get("request")
         church = request.current_church or request.user.church
 
         if not church:
             raise serializers.ValidationError("Church context required")
+
+        expense_req = validated_data.get("expense_request")
+        if expense_req:
+            if (
+                validated_data.get("requested_by") is None
+                and expense_req.requested_by_id
+            ):
+                validated_data["requested_by"] = expense_req.requested_by
+            if (
+                validated_data.get("approved_by") is None
+                and expense_req.treasurer_approved_by_id
+            ):
+                validated_data["approved_by"] = expense_req.treasurer_approved_by
 
         # Generate voucher number
         from datetime import datetime
@@ -441,17 +474,120 @@ class ExpenseTransactionDetailSerializer(serializers.ModelSerializer):
 
         voucher_number = f"VCH-{year}-{new_num:06d}"
 
-        return ExpenseTransaction.objects.create(
+        instance = ExpenseTransaction.objects.create(
             church=church,
             voucher_number=voucher_number,
             recorded_by=request.user,
             **validated_data,
         )
 
+        if expense_req and expense_req.status == "APPROVED":
+            expense_req.status = "DISBURSED"
+            expense_req.disbursed_at = timezone.now()
+            expense_req.disbursed_amount = instance.amount
+            expense_req.save()
+            try:
+                AuditLog.log(
+                    request.user,
+                    "STATUS_CHANGE",
+                    expense_req,
+                    request=request,
+                    description=(
+                        f"Expense request {expense_req.request_number} marked disbursed "
+                        f"from expense transaction {instance.voucher_number}"
+                    ),
+                )
+            except Exception:
+                pass
+
+        return instance
+
 
 # ==========================================
 # EXPENSE REQUEST SERIALIZERS
 # ==========================================
+
+
+def expense_request_pending_step(obj) -> dict:
+    """
+    Who must act next on this expense request (for list API, admin, and UI).
+    Returns {"code": str, "label": str}.
+    """
+    s = (getattr(obj, "status", None) or "").strip()
+    if s == "DRAFT":
+        return {
+            "code": "DRAFT",
+            "label": "Submitter: complete draft and submit",
+        }
+    if s == "SUBMITTED":
+        return {
+            "code": "DEPT_HEAD",
+            "label": "Department head or elder in charge",
+        }
+    if s == "DEPT_HEAD_APPROVED":
+        return {
+            "code": "FIRST_ELDER",
+            "label": "First Elder or elder in charge",
+        }
+    if s == "FIRST_ELDER_APPROVED":
+        return {
+            "code": "TREASURER",
+            "label": "Treasurer (final approval)",
+        }
+    if s == "TREASURER_APPROVED":
+        return {
+            "code": "TREASURER",
+            "label": "Treasurer (complete workflow)",
+        }
+    if s == "APPROVED":
+        return {
+            "code": "DISBURSE",
+            "label": "Treasurer: record disbursement when paid",
+        }
+    if s == "DISBURSED":
+        return {"code": "DONE", "label": "Completed (disbursed)"}
+    if s == "REJECTED":
+        return {"code": "REJECTED", "label": "Rejected — no further approvals"}
+    if s == "CANCELLED":
+        return {"code": "CANCELLED", "label": "Cancelled"}
+    label = obj.get_status_display() if hasattr(obj, "get_status_display") else s
+    return {"code": s or "UNKNOWN", "label": label}
+
+
+def expense_request_approval_chain(obj) -> dict:
+    """
+    Approval stages for list/detail API and admin UI.
+    Keys: dept_head, first_elder, treasurer — each has approved, approved_by, approved_at.
+    """
+    return {
+        "dept_head": {
+            "approved": obj.dept_head_approved_at is not None,
+            "approved_by": (
+                obj.dept_head_approved_by.get_full_name()
+                if obj.dept_head_approved_by
+                else None
+            ),
+            "approved_at": obj.dept_head_approved_at,
+        },
+        "first_elder": {
+            "approved": obj.first_elder_approved_at is not None,
+            "approved_by": (
+                obj.first_elder_approved_by.get_full_name()
+                if obj.first_elder_approved_by
+                else None
+            ),
+            "approved_at": obj.first_elder_approved_at,
+        },
+        "treasurer": {
+            "approved": obj.treasurer_approved_at is not None,
+            "approved_by": (
+                obj.treasurer_approved_by.get_full_name()
+                if obj.treasurer_approved_by
+                else None
+            ),
+            "approved_at": obj.treasurer_approved_at,
+        },
+    }
 
 
 class ExpenseRequestListSerializer(serializers.ModelSerializer):
@@ -465,6 +601,9 @@ class ExpenseRequestListSerializer(serializers.ModelSerializer):
         source="get_priority_display", read_only=True
     )
     approval_progress = serializers.FloatField(read_only=True)
+    pending_step = serializers.SerializerMethodField()
+    approval_chain = serializers.SerializerMethodField()
+    review_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpenseRequest
@@ -482,6 +621,9 @@ class ExpenseRequestListSerializer(serializers.ModelSerializer):
             "required_by_date",
             "requested_by_name",
             "approval_progress",
+            "approval_chain",
+            "pending_step",
+            "review_permissions",
             "created_at",
         ]
 
@@ -489,6 +631,15 @@ class ExpenseRequestListSerializer(serializers.ModelSerializer):
         if obj.requested_by:
             return obj.requested_by.get_full_name() or obj.requested_by.username
         return None
+
+    def get_pending_step(self, obj):
+        return expense_request_pending_step(obj)
+
+    def get_approval_chain(self, obj):
+        return expense_request_approval_chain(obj)
+
+    def get_review_permissions(self, obj):
+        return expense_review_permissions(self.context.get("request"), obj)
 
 
 class ExpenseRequestDetailSerializer(serializers.ModelSerializer):
@@ -509,53 +660,8 @@ class ExpenseRequestDetailSerializer(serializers.ModelSerializer):
     approval_progress = serializers.FloatField(read_only=True)
     requested_by_name = serializers.SerializerMethodField()
     approval_chain = serializers.SerializerMethodField()
-
-    def create(self, validated_data):
-        from departments.models import Department
-
-        # Extract and remove department_id from validated_data
-        department_id = validated_data.pop("department_id", None)
-
-        # Create the instance
-        instance = super().create(validated_data)
-
-        # Set department if provided
-        if department_id:
-            try:
-                department = Department.objects.get(
-                    id=department_id, church=instance.church
-                )
-                instance.department = department
-                instance.save()
-            except Department.DoesNotExist:
-                pass
-
-        return instance
-
-    def update(self, instance, validated_data):
-        from departments.models import Department
-
-        # Extract and remove department_id from validated_data
-        department_id = validated_data.pop("department_id", None)
-
-        # Update the instance
-        instance = super().update(instance, validated_data)
-
-        # Update department if provided
-        if department_id is not None:  # Could be None to clear the department
-            if department_id:
-                try:
-                    department = Department.objects.get(
-                        id=department_id, church=instance.church
-                    )
-                    instance.department = department
-                except Department.DoesNotExist:
-                    pass
-            else:
-                instance.department = None
-            instance.save()
-
-        return instance
+    pending_step = serializers.SerializerMethodField()
+    review_permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpenseRequest
@@ -579,6 +685,8 @@ class ExpenseRequestDetailSerializer(serializers.ModelSerializer):
             "requested_by_name",
             "requested_at",
             "approval_chain",
+            "pending_step",
+            "review_permissions",
             "approval_progress",
             "rejection_reason",
             "approval_comments",
@@ -593,6 +701,8 @@ class ExpenseRequestDetailSerializer(serializers.ModelSerializer):
             "requested_by",
             "requested_at",
             "approval_chain",
+            "pending_step",
+            "review_permissions",
             "created_at",
             "updated_at",
         ]
@@ -618,35 +728,32 @@ class ExpenseRequestDetailSerializer(serializers.ModelSerializer):
 
     def get_approval_chain(self, obj):
         """Get approval chain status"""
-        return {
-            "dept_head": {
-                "approved": obj.dept_head_approved_at is not None,
-                "approved_by": (
-                    obj.dept_head_approved_by.get_full_name()
-                    if obj.dept_head_approved_by
-                    else None
-                ),
-                "approved_at": obj.dept_head_approved_at,
-            },
-            "treasurer": {
-                "approved": obj.treasurer_approved_at is not None,
-                "approved_by": (
-                    obj.treasurer_approved_by.get_full_name()
-                    if obj.treasurer_approved_by
-                    else None
-                ),
-                "approved_at": obj.treasurer_approved_at,
-            },
-            "first_elder": {
-                "approved": obj.first_elder_approved_at is not None,
-                "approved_by": (
-                    obj.first_elder_approved_by.get_full_name()
-                    if obj.first_elder_approved_by
-                    else None
-                ),
-                "approved_at": obj.first_elder_approved_at,
-            },
-        }
+        return expense_request_approval_chain(obj)
+
+    def get_pending_step(self, obj):
+        return expense_request_pending_step(obj)
+
+    def get_review_permissions(self, obj):
+        return expense_review_permissions(self.context.get("request"), obj)
+
+    def update(self, instance, validated_data):
+        from departments.models import Department
+
+        department_id = validated_data.pop("department_id", None)
+        instance = super().update(instance, validated_data)
+        if department_id is not None:
+            if department_id:
+                try:
+                    department = Department.objects.get(
+                        id=department_id, church=instance.church
+                    )
+                    instance.department = department
+                except Department.DoesNotExist:
+                    pass
+            else:
+                instance.department = None
+            instance.save()
+        return instance
 
     def create(self, validated_data):
         request = self.context.get("request")

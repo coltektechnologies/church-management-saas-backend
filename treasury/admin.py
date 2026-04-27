@@ -4,9 +4,16 @@ from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
-from .models import (Asset, ExpenseCategory, ExpenseRequest,
-                     ExpenseTransaction, IncomeAllocation, IncomeCategory,
-                     IncomeTransaction)
+from .models import (
+    Asset,
+    ExpenseCategory,
+    ExpenseRequest,
+    ExpenseTransaction,
+    IncomeAllocation,
+    IncomeCategory,
+    IncomeTransaction,
+)
+from .serializers import expense_request_approval_chain, expense_request_pending_step
 
 # ==========================================
 # INCOME CATEGORY ADMIN
@@ -73,7 +80,10 @@ class IncomeAllocationInline(admin.TabularInline):
     can_delete = False
     readonly_fields = ["destination_display", "amount", "percentage"]
     verbose_name = "Church/Conference split"
-    verbose_name_plural = "Church/Conference allocation (auto: Tithe 100% Conference; General/Loose Offering 50/50)"
+    verbose_name_plural = (
+        "Church/Conference allocation (auto: Tithe 100% conf.; "
+        "General/Loose 50/50; Harvest 80% church / 20% conf.; other 100% church)"
+    )
 
     def destination_display(self, obj):
         return obj.get_destination_display() if obj else ""
@@ -362,6 +372,7 @@ class ExpenseRequestAdmin(admin.ModelAdmin):
         "department",
         "amount_requested_display",
         "status_badge",
+        "approval_timeline",
         "priority_badge",
         "approval_progress_bar",
         "requested_by",
@@ -377,6 +388,7 @@ class ExpenseRequestAdmin(admin.ModelAdmin):
     ]
     search_fields = ["request_number", "purpose", "justification"]
     readonly_fields = [
+        "approval_overview_html",
         "request_number",
         "requested_by",
         "requested_at",
@@ -393,6 +405,13 @@ class ExpenseRequestAdmin(admin.ModelAdmin):
     date_hierarchy = "created_at"
 
     fieldsets = (
+        (
+            "Approval overview",
+            {
+                "fields": ("approval_overview_html",),
+                "description": "Who has already approved and whose turn is next.",
+            },
+        ),
         (
             "Request Details",
             {
@@ -486,6 +505,58 @@ class ExpenseRequestAdmin(admin.ModelAdmin):
 
     status_badge.short_description = "Status"
     status_badge.admin_order_field = "status"
+
+    def _approval_overview_markup(self, obj):
+        """HTML: three stages + who acts next (shared list + change views)."""
+        ch = expense_request_approval_chain(obj)
+        step = expense_request_pending_step(obj)
+        stages = [
+            ("Department head / elder in charge", ch["dept_head"]),
+            ("First Elder / elder in charge", ch["first_elder"]),
+            ("Treasurer (final approval)", ch["treasurer"]),
+        ]
+        rows = []
+        for title, d in stages:
+            if d["approved"]:
+                by = d["approved_by"] or "—"
+                rows.append(
+                    format_html(
+                        '<div style="margin-bottom:3px"><span style="color:#28a745;font-weight:bold">✓</span> '
+                        "<strong>{}:</strong> {}</div>",
+                        title,
+                        by,
+                    )
+                )
+            else:
+                rows.append(
+                    format_html(
+                        '<div style="margin-bottom:3px"><span style="color:#adb5bd">○</span> '
+                        "<strong>{}:</strong> <em>Not yet</em></div>",
+                        title,
+                    )
+                )
+        return format_html(
+            '<div style="font-size:12px;line-height:1.45;max-width:360px">'
+            "{}{}{}"
+            '<div style="margin-top:8px;padding-top:6px;border-top:1px solid #dee2e6">'
+            "<strong>Who acts next:</strong> {}"
+            "</div>"
+            "</div>",
+            rows[0],
+            rows[1],
+            rows[2],
+            step["label"],
+        )
+
+    def approval_timeline(self, obj):
+        return self._approval_overview_markup(obj)
+
+    approval_timeline.short_description = "Approvals / next"
+
+    def approval_overview_html(self, obj):
+        return self._approval_overview_markup(obj)
+
+    approval_overview_html.short_description = "Approvals (completed vs next)"
 
     def priority_badge(self, obj):
         colors = {

@@ -210,14 +210,36 @@ class AnalyticsTitheOfferingStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_description="Tithe and offerings: monthly trend, this month totals and weekly breakdown.",
+        operation_description=(
+            "Tithe and offerings: monthly trend, this month totals and weekly breakdown. "
+            "Use calendar_year=YYYY for Jan–Dec of that year, or year_from & year_to for "
+            "full-year totals per year."
+        ),
         manual_parameters=[
             openapi.Parameter(
                 "period_months",
                 openapi.IN_QUERY,
                 type=openapi.TYPE_INTEGER,
                 default=9,
-                description="Number of months for trend (default 9)",
+                description="Rolling months (ignored if calendar_year or year_from/year_to set)",
+            ),
+            openapi.Parameter(
+                "calendar_year",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description="If set, monthly_trend is Jan–Dec for this calendar year",
+            ),
+            openapi.Parameter(
+                "year_from",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description="With year_to: yearly_trend totals per calendar year (inclusive)",
+            ),
+            openapi.Parameter(
+                "year_to",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description="With year_from: yearly_trend totals per calendar year (inclusive)",
             ),
         ],
         tags=["Analytics"],
@@ -232,6 +254,37 @@ class AnalyticsTitheOfferingStatsView(APIView):
             period_months = int(request.query_params.get("period_months") or 9)
         except (ValueError, TypeError):
             period_months = 9
+
+        cy_raw = request.query_params.get("calendar_year")
+        yf_raw = request.query_params.get("year_from")
+        yt_raw = request.query_params.get("year_to")
+
+        if cy_raw not in (None, ""):
+            try:
+                calendar_year = int(cy_raw)
+            except (ValueError, TypeError):
+                calendar_year = None
+            else:
+                data = DashboardService(church).tithe_offering_stats(
+                    period_months=period_months,
+                    calendar_year=calendar_year,
+                )
+                return Response(data)
+
+        if yf_raw not in (None, "") and yt_raw not in (None, ""):
+            try:
+                y_from = int(yf_raw)
+                y_to = int(yt_raw)
+            except (ValueError, TypeError):
+                pass
+            else:
+                data = DashboardService(church).tithe_offering_stats(
+                    period_months=period_months,
+                    yearly_from=y_from,
+                    yearly_to=y_to,
+                )
+                return Response(data)
+
         data = DashboardService(church).tithe_offering_stats(
             period_months=period_months
         )

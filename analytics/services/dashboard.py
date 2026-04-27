@@ -5,7 +5,7 @@ All queries are church-scoped.
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from django.core.cache import cache
 from django.db.models import Count, Q, Sum
@@ -20,6 +20,22 @@ from treasury.models import Asset, ExpenseRequest, ExpenseTransaction, IncomeTra
 
 # Cache TTL in seconds (5 min for near real-time dashboards)
 DASHBOARD_CACHE_TTL = 300
+
+
+def _member_display_phone(member: Member) -> str:
+    """
+    Best-effort display phone for analytics payloads.
+    Member has no `phone_number` field; numbers live on MemberLocation and optional emergency fields.
+    """
+    loc = getattr(member, "location", None)
+    if loc is not None:
+        primary = (getattr(loc, "phone_primary", None) or "").strip()
+        if primary:
+            return primary
+    ec = (getattr(member, "emergency_contact_phone", None) or "").strip()
+    if ec:
+        return ec
+    return ""
 
 
 def _cache_key(church_id: str, key: str, **extra) -> str:
@@ -381,7 +397,14 @@ class DashboardService:
         )
 
     # ---------- Analytics: Tithe & Offerings ----------
-    def tithe_offering_stats(self, period_months: int = 9) -> dict:
+    def tithe_offering_stats(
+        self,
+        period_months: int = 9,
+        *,
+        calendar_year: Optional[int] = None,
+        yearly_from: Optional[int] = None,
+        yearly_to: Optional[int] = None,
+    ) -> dict:
         today = timezone.localdate()
         month_start = today.replace(day=1)
         base = IncomeTransaction.objects.filter(
@@ -391,35 +414,23 @@ class DashboardService:
         tithe_base = base.filter(category__code="TITHE")
         offering_base = base.exclude(category__code="TITHE")
 
-        def _build():
-            monthly_trend = []
-            for i in range(period_months - 1, -1, -1):
-                if month_start.month - i <= 0:
-                    yr = month_start.year - 1
-                    m = month_start.month - i + 12
-                else:
-                    yr = month_start.year
-                    m = month_start.month - i
-                dt = date(yr, m, 1)
-                end_dt = (dt.replace(day=28) + timedelta(days=4)).replace(
-                    day=1
-                ) - timedelta(days=1)
-                tithe_sum = tithe_base.filter(
-                    transaction_date__gte=dt,
-                    transaction_date__lte=end_dt,
-                ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-                offering_sum = offering_base.filter(
-                    transaction_date__gte=dt,
-                    transaction_date__lte=end_dt,
-                ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
-                monthly_trend.append(
-                    {
-                        "month": dt.strftime("%b %y"),
-                        "tithe": float(tithe_sum),
-                        "offering": float(offering_sum),
-                    }
-                )
+        def _month_end(d: date) -> date:
+            return (d.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(
+                days=1
+            )
 
+        def _totals_for_range(dt_start: date, dt_end: date) -> Tuple[Decimal, Decimal]:
+            tithe_sum = tithe_base.filter(
+                transaction_date__gte=dt_start,
+                transaction_date__lte=dt_end,
+            ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+            offering_sum = offering_base.filter(
+                transaction_date__gte=dt_start,
+                transaction_date__lte=dt_end,
+            ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
+            return tithe_sum, offering_sum
+
+        def _this_month_payload() -> Dict[str, Any]:
             this_month_tithe = tithe_base.filter(
                 transaction_date__gte=month_start,
                 transaction_date__lte=today,
@@ -460,21 +471,103 @@ class DashboardService:
                 transaction_date__gte=month_start,
                 transaction_date__lte=today,
             )
-            tithe_weeks = week_sums(tithe_month_qs)
-            offering_weeks = week_sums(offering_month_qs)
-
             return {
+                "tithe_total": str(this_month_tithe),
+                "offering_total": str(this_month_offering),
+                "tithe_by_week": week_sums(tithe_month_qs),
+                "offering_by_week": week_sums(offering_month_qs),
+            }
+
+        if calendar_year is not None:
+            cy = int(calendar_year)
+
+            def _build_calendar():
+                monthly_trend = []
+                for m in range(1, 13):
+                    dt = date(cy, m, 1)
+                    end_dt = _month_end(dt)
+                    tithe_sum, offering_sum = _totals_for_range(dt, end_dt)
+                    monthly_trend.append(
+                        {
+                            "month": dt.strftime("%b"),
+                            "tithe": float(tithe_sum),
+                            "offering": float(offering_sum),
+                        }
+                    )
+                return {
+                    "view": "calendar_month",
+                    "calendar_year": cy,
+                    "monthly_trend": monthly_trend,
+                    "yearly_trend": [],
+                    "this_month": _this_month_payload(),
+                    "generated_at": timezone.now().isoformat(),
+                }
+
+            return self._get_cached("tithe_offering_stats", _build_calendar, cyear=cy)
+
+        if yearly_from is not None and yearly_to is not None:
+            y_lo = min(int(yearly_from), int(yearly_to))
+            y_hi = max(int(yearly_from), int(yearly_to))
+            if y_hi - y_lo > 50:
+                y_lo = y_hi - 50
+
+            def _build_yearly():
+                yearly_trend = []
+                for y in range(y_lo, y_hi + 1):
+                    dt_start = date(y, 1, 1)
+                    dt_end = date(y, 12, 31)
+                    tithe_sum, offering_sum = _totals_for_range(dt_start, dt_end)
+                    yearly_trend.append(
+                        {
+                            "year": str(y),
+                            "tithe": float(tithe_sum),
+                            "offering": float(offering_sum),
+                        }
+                    )
+                return {
+                    "view": "yearly",
+                    "yearly_from": y_lo,
+                    "yearly_to": y_hi,
+                    "monthly_trend": [],
+                    "yearly_trend": yearly_trend,
+                    "this_month": _this_month_payload(),
+                    "generated_at": timezone.now().isoformat(),
+                }
+
+            return self._get_cached(
+                "tithe_offering_stats", _build_yearly, y0=y_lo, y1=y_hi
+            )
+
+        def _build_rolling():
+            monthly_trend = []
+            for i in range(period_months - 1, -1, -1):
+                if month_start.month - i <= 0:
+                    yr = month_start.year - 1
+                    m = month_start.month - i + 12
+                else:
+                    yr = month_start.year
+                    m = month_start.month - i
+                dt = date(yr, m, 1)
+                end_dt = _month_end(dt)
+                tithe_sum, offering_sum = _totals_for_range(dt, end_dt)
+                monthly_trend.append(
+                    {
+                        "month": dt.strftime("%b %y"),
+                        "tithe": float(tithe_sum),
+                        "offering": float(offering_sum),
+                    }
+                )
+            return {
+                "view": "rolling",
                 "monthly_trend": monthly_trend,
-                "this_month": {
-                    "tithe_total": str(this_month_tithe),
-                    "offering_total": str(this_month_offering),
-                    "tithe_by_week": tithe_weeks,
-                    "offering_by_week": offering_weeks,
-                },
+                "yearly_trend": [],
+                "this_month": _this_month_payload(),
                 "generated_at": timezone.now().isoformat(),
             }
 
-        return self._get_cached("tithe_offering_stats", _build, months=period_months)
+        return self._get_cached(
+            "tithe_offering_stats", _build_rolling, months=period_months
+        )
 
     # ---------- Analytics: Announcements stats ----------
     def announcements_stats(self) -> dict:
@@ -532,9 +625,13 @@ class DashboardService:
 
             result = []
             for row in agg:
-                member = Member.objects.filter(
-                    id=row["member_id"], church=self.church, deleted_at__isnull=True
-                ).first()
+                member = (
+                    Member.objects.filter(
+                        id=row["member_id"], church=self.church, deleted_at__isnull=True
+                    )
+                    .select_related("location")
+                    .first()
+                )
                 if not member:
                     continue
 
@@ -558,7 +655,7 @@ class DashboardService:
                         "id": str(member.id),
                         "name": member.full_name or "Unknown",
                         "avatar": getattr(member, "profile_photo", None) or "",
-                        "phone": member.phone_number or "",
+                        "phone": _member_display_phone(member),
                         "status": member.membership_status or "ACTIVE",
                         "total_amount": float(row["total"]),
                         "last_date": str(row["last_date"]),

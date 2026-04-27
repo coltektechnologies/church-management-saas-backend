@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -13,6 +13,11 @@ from members.models import Member
 # ==========================================
 # INCOME MODELS
 # ==========================================
+
+# Church / conference split for harvest income (must match IncomeCategory.code for those rows).
+HARVEST_ALLOCATION_CODES = frozenset(
+    {"HARVEST", "ANNUAL_HARVEST", "THANKSGIVING_HARVEST"}
+)
 
 
 class IncomeCategory(models.Model):
@@ -25,6 +30,9 @@ class IncomeCategory(models.Model):
         ("SABBATH_SCHOOL", "Sabbath School Offering"),
         ("PROJECT_OFFERING", "Project Offering"),
         ("THANKSGIVING", "Thanksgiving Offering"),
+        ("HARVEST", "Harvest"),
+        ("ANNUAL_HARVEST", "Annual Harvest"),
+        ("THANKSGIVING_HARVEST", "Thanksgiving Harvest"),
         ("SPECIAL_OFFERING", "Special Offering"),
         ("DONATION", "Donation"),
         ("FUNDRAISING", "Fundraising"),
@@ -56,6 +64,32 @@ class IncomeCategory(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.church.name})"
+
+
+def ensure_default_income_categories_for_church(church):
+    """
+    Create standard income categories (Tithe, Offering, …) when a church has none.
+
+    Used by the income category list API so new churches are usable without manual
+    seeding. Idempotent after the first row exists. Concurrent first requests may hit
+    IntegrityError; that is ignored so one winning transaction is enough.
+    """
+    if church is None:
+        return
+    if IncomeCategory.objects.filter(church=church).exists():
+        return
+    try:
+        with transaction.atomic():
+            for code, name in IncomeCategory.PREDEFINED_CATEGORIES:
+                IncomeCategory.objects.create(
+                    church=church,
+                    code=code,
+                    name=name,
+                    description="",
+                    is_active=True,
+                )
+    except IntegrityError:
+        pass
 
 
 class IncomeTransaction(models.Model):
@@ -166,7 +200,10 @@ class IncomeTransaction(models.Model):
 class IncomeAllocation(models.Model):
     """
     Auto-created split of income between Church and Conference.
-    Tithe: 100% Conference. General/Loose Offering: 50% Church, 50% Conference.
+
+    Rules (see treasury.signals.create_income_allocations):
+    Tithe: 100% Conference. General + loose offering: 50% / 50%.
+    Harvest (HARVEST, ANNUAL_HARVEST, THANKSGIVING_HARVEST): 80% Church, 20% Conference.
     All other income: 100% Church.
     """
 

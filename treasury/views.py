@@ -17,6 +17,12 @@ from accounts.models import Church
 from accounts.models.base_models import AuditLog
 from accounts.permissions import has_permission as has_custom_permission
 
+from .expense_approval_access import (
+    can_approve_expense_as_dept_head_or_elder,
+    can_approve_expense_as_first_elder,
+    can_approve_expense_as_treasurer,
+    user_can_reject_expense_at_current_stage,
+)
 from .models import (
     Asset,
     ExpenseCategory,
@@ -24,6 +30,7 @@ from .models import (
     ExpenseTransaction,
     IncomeCategory,
     IncomeTransaction,
+    ensure_default_income_categories_for_church,
 )
 from .serializers import (
     ApproveExpenseRequestSerializer,
@@ -75,6 +82,8 @@ class IncomeCategoryView(APIView):
             return Response(
                 {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
             )
+
+        ensure_default_income_categories_for_church(church)
 
         categories = IncomeCategory.objects.filter(church=church)
 
@@ -638,6 +647,10 @@ def resolve_treasury_church_for_request(
             church = candidate
         elif has_custom_permission(user, "treasury.view", church=candidate):
             church = candidate
+        elif has_custom_permission(user, "treasury.approve_expense", church=candidate):
+            # Some churches grant approval without the broader "view" permission; list/detail must
+            # still resolve church for expense request queues.
+            church = candidate
         else:
             return None, Response(
                 {
@@ -655,7 +668,8 @@ def resolve_treasury_church_for_request(
                 "error": "Church context required",
                 "hint": (
                     "Pass ?church_id=<uuid> for the congregation to scope. "
-                    "Requires platform admin, your home church, or treasury.view on that church."
+                    "Requires platform admin, your home church, or treasury.view / "
+                    "treasury.approve_expense on that church."
                 ),
             },
             status=status.HTTP_400_BAD_REQUEST,
@@ -847,7 +861,7 @@ def submit_expense_request(request, pk):
         )
 
     # Auto-approve if submitted by department head or elder in charge
-    is_dept_head_or_elder = _can_approve_expense_as_dept_head_or_elder(
+    is_dept_head_or_elder = can_approve_expense_as_dept_head_or_elder(
         request, expense_request
     )
 
@@ -885,36 +899,6 @@ def submit_expense_request(request, pk):
     return Response(serializer.data)
 
 
-def _can_approve_expense_as_dept_head_or_elder(request, expense_request):
-    """Check if user can approve: Department Head or Elder in charge of the department."""
-    from departments.models import DepartmentHead
-    from members.models import MemberLocation
-
-    dept = expense_request.department
-    if not dept:
-        return False
-    # Department Head: member whose email matches user, and is head of this dept
-    member_location = MemberLocation.objects.filter(
-        email__iexact=request.user.email, church=expense_request.church
-    ).first()
-    if (
-        member_location
-        and DepartmentHead.objects.filter(
-            department=dept, member=member_location.member
-        ).exists()
-    ):
-        return True
-    # Elder in charge: department's elder_in_charge has system_user_id matching request.user
-    elder = getattr(dept, "elder_in_charge", None)
-    if (
-        elder
-        and elder.system_user_id
-        and str(elder.system_user_id) == str(request.user.id)
-    ):
-        return True
-    return False
-
-
 @swagger_auto_schema(
     method="post",
     operation_description="Approve expense request (Department Head or Elder in charge)",
@@ -929,7 +913,7 @@ def approve_expense_request_dept_head(request, pk):
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
 
-    if not _can_approve_expense_as_dept_head_or_elder(request, expense_request):
+    if not can_approve_expense_as_dept_head_or_elder(request, expense_request):
         return Response(
             {
                 "error": "Only the Department Head or Elder in charge of this department can approve"
@@ -984,30 +968,6 @@ def approve_expense_request_dept_head(request, pk):
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-def _can_approve_expense_as_first_elder(request, expense_request):
-    """Check if user can approve: First Elder role OR Elder in charge of the department."""
-    from accounts.models import Role, UserRole
-
-    church = expense_request.church
-    dept = expense_request.department
-    user = request.user
-    # First Elder role (church-level)
-    first_elder_role = Role.objects.filter(name="First Elder").first()
-    if (
-        first_elder_role
-        and UserRole.objects.filter(
-            user=user, role=first_elder_role, church=church, is_active=True
-        ).exists()
-    ):
-        return True
-    # Elder in charge of this department
-    if dept:
-        elder = getattr(dept, "elder_in_charge", None)
-        if elder and elder.system_user_id and str(elder.system_user_id) == str(user.id):
-            return True
-    return False
-
-
 @swagger_auto_schema(
     method="post",
     operation_description="Approve expense request (First Elder or Elder in charge)",
@@ -1022,7 +982,7 @@ def approve_expense_request_first_elder(request, pk):
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
 
-    if not _can_approve_expense_as_first_elder(request, expense_request):
+    if not can_approve_expense_as_first_elder(request, expense_request):
         return Response(
             {
                 "error": "Only First Elder or the Elder in charge of this department can approve"
@@ -1082,13 +1042,7 @@ def approve_expense_request_treasurer(request, pk):
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
 
-    if not (
-        request.user.is_staff
-        or request.user.is_superuser
-        or has_custom_permission(
-            request.user, "treasury.approve_expense", church=church
-        )
-    ):
+    if not can_approve_expense_as_treasurer(request, expense_request):
         return Response(
             {
                 "error": "Only users with treasury approval permission can approve at this stage."
@@ -1115,6 +1069,16 @@ def approve_expense_request_treasurer(request, pk):
             request=request,
             description=f"Expense request {expense_request.request_number} approved by Treasurer",
         )
+        try:
+            from .expense_notifications import notify_expense_request_after_treasurer
+
+            notify_expense_request_after_treasurer(expense_request)
+        except Exception as e:
+            logger.warning(
+                "Expense request post-treasurer notification cleanup failed for %s: %s",
+                expense_request.pk,
+                e,
+            )
         response_serializer = ExpenseRequestDetailSerializer(
             expense_request, context={"request": request}
         )
@@ -1137,10 +1101,23 @@ def reject_expense_request(request, pk):
     church = getattr(request, "current_church", None) or request.user.church
     expense_request = get_object_or_404(ExpenseRequest, pk=pk, church=church)
 
-    if expense_request.status in ["APPROVED", "DISBURSED", "CANCELLED"]:
+    if expense_request.status in [
+        "APPROVED",
+        "DISBURSED",
+        "CANCELLED",
+        "REJECTED",
+    ]:
         return Response(
             {"error": "Cannot reject request in current status"},
             status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if not user_can_reject_expense_at_current_stage(request, expense_request):
+        return Response(
+            {
+                "error": "Only the officer who would approve at this stage can reject this request."
+            },
+            status=status.HTTP_403_FORBIDDEN,
         )
 
     serializer = RejectExpenseRequestSerializer(data=request.data)
@@ -1155,6 +1132,18 @@ def reject_expense_request(request, pk):
             request=request,
             description=f"Expense request {expense_request.request_number} rejected",
         )
+        try:
+            from .expense_notifications import (
+                clear_expense_request_workflow_notifications,
+            )
+
+            clear_expense_request_workflow_notifications(expense_request)
+        except Exception as e:
+            logger.warning(
+                "Expense request rejection notification cleanup failed for %s: %s",
+                expense_request.pk,
+                e,
+            )
         response_serializer = ExpenseRequestDetailSerializer(
             expense_request, context={"request": request}
         )
