@@ -353,11 +353,16 @@ class SMSLog(models.Model):
                 self.status = status
                 self.gateway_message_id = result.get("message_id")
                 self.sent_at = timezone.now()
+                from notifications.sms_pricing import apply_sms_log_segment_cost
+
+                apply_sms_log_segment_cost(self)
                 self.save(
                     update_fields=[
                         "status",
                         "gateway_message_id",
                         "sent_at",
+                        "cost",
+                        "price_unit",
                         "updated_at",
                     ]
                 )

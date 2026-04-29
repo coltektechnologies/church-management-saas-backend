@@ -110,6 +110,11 @@ class Church(models.Model):
         default=True,
         help_text="When False, church users cannot log in or use the API until re-enabled.",
     )
+    last_subscription_reminder_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="Last time platform staff sent a subscription/trial reminder email from admin.",
+    )
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)

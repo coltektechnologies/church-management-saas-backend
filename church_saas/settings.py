@@ -1,5 +1,6 @@
 import os
 from datetime import timedelta
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 import dj_database_url
@@ -29,6 +30,7 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.sites",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
@@ -141,7 +143,14 @@ else:
             "PORT": config("DB_PORT", default="5433"),
         }
     }
+
+# NOTE: Do not set OPTIONS["disable_server_side_cursors"] here. Django 5.2 merges OPTIONS
+# into psycopg connect kwargs and does not strip that key, so Postgres rejects it as invalid.
+
 # DATABASES["default"]= dj_database_url.parse(DATABASE_URL)
+# django.contrib.sites (used by some tasks, e.g. notifications)
+SITE_ID = 1
+
 # Custom User Model
 AUTH_USER_MODEL = "accounts.User"
 
@@ -328,9 +337,9 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Celery Configuration
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = config(
-    "CELERY_RESULT_BACKEND", default="redis://localhost:6379/0"
-)
+# django-db stores rows in django_celery_results (visible in admin as TaskResult).
+# Set CELERY_RESULT_BACKEND=redis://... in .env if you prefer Redis-only results (no DB history).
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="django-db")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
@@ -449,6 +458,20 @@ MNOTIFY_API_KEY = os.getenv("MNOTIFY_API_KEY", "")  # Set in environment variabl
 MNOTIFY_SENDER_ID = os.getenv(
     "MNOTIFY_SENDER_ID", "Open door"
 )  # Default sender ID for SMS messages
+
+
+# SMS accounting: cost per 160-char segment (persisted on SMSLog.cost when messages send)
+def _sms_segment_unit_price():
+    raw = os.getenv("SMS_SEGMENT_UNIT_PRICE", "0.05")
+    try:
+        return Decimal(str(raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("0.05")
+
+
+SMS_SEGMENT_UNIT_PRICE = _sms_segment_unit_price()
+SMS_PRICE_CURRENCY = os.getenv("SMS_PRICE_CURRENCY", "GHS").strip().upper()[:3] or "GHS"
+
 TWILIO_TEST_AUTH_TOKEN = os.getenv("TWILIO_TEST_AUTH_TOKEN")
 
 # Cloudinary (File Management & Media)

@@ -1,6 +1,12 @@
-from django.contrib import admin
+import logging
+
+from django.contrib import admin, messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.urls import path, reverse
 from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     AuditLog,
@@ -14,6 +20,7 @@ from .models import (
     User,
     UserRole,
 )
+from .models.subscription_plan_setting import SubscriptionPlanSetting
 
 
 class UserChurchGroupMemberInline(admin.TabularInline):
@@ -31,6 +38,88 @@ class UserChurchGroupMemberInline(admin.TabularInline):
 from .models.payment import Payment
 
 
+@admin.register(SubscriptionPlanSetting)
+class SubscriptionPlanSettingAdmin(admin.ModelAdmin):
+    """
+    Plan catalog: add / change / delete rows. “Visible on site” controls the
+    public `GET /api/auth/registration/plans/` list and signup validation.
+    """
+
+    list_display = (
+        "plan_code",
+        "label",
+        "is_active",
+        "sort_order",
+        "max_users_default",
+        "sms_monthly_quota",
+        "enforce_sms_quota",
+        "email_monthly_quota",
+        "enforce_email_quota",
+        "updated_at",
+    )
+    list_editable = (
+        "is_active",
+        "sort_order",
+        "max_users_default",
+        "sms_monthly_quota",
+        "enforce_sms_quota",
+        "email_monthly_quota",
+        "enforce_email_quota",
+    )
+    list_display_links = ("plan_code",)
+    list_filter = ("is_active", "enforce_sms_quota", "enforce_email_quota")
+    ordering = ("sort_order", "plan_code")
+    search_fields = ("plan_code", "label", "notes")
+    readonly_fields = ("updated_at",)
+    save_on_top = True
+    change_list_template = "admin/accounts/subscriptionplansetting/change_list.html"
+
+    fieldsets = (
+        (
+            _("Plan identity & catalog"),
+            {
+                "description": _(
+                    "Create a new plan with a unique code, or edit an existing row. "
+                    "The code must match `Church.subscription_plan` for that church."
+                ),
+                "fields": (
+                    "plan_code",
+                    "label",
+                    "is_active",
+                    "sort_order",
+                ),
+            },
+        ),
+        (
+            _("Plan resources (per church on this tier)"),
+            {
+                "description": _(
+                    "User seats are the maximum church accounts (admins/staff) allowed. "
+                    "SMS is counted in segments (≈160 chars each). Email is outbound messages per month. "
+                    "Enforcement flags are used when those checks are implemented in code."
+                ),
+                "fields": (
+                    "max_users_default",
+                    ("sms_monthly_quota", "enforce_sms_quota"),
+                    ("email_monthly_quota", "enforce_email_quota"),
+                ),
+            },
+        ),
+        (
+            _("Internal notes"),
+            {
+                "classes": ("collapse",),
+                "fields": ("notes", "updated_at"),
+            },
+        ),
+    )
+
+    def get_readonly_fields(self, request, obj=None):
+        if obj:
+            return ("plan_code",) + self.readonly_fields
+        return self.readonly_fields
+
+
 @admin.register(Church)
 class ChurchAdmin(admin.ModelAdmin):
     """Church admin interface"""
@@ -43,7 +132,9 @@ class ChurchAdmin(admin.ModelAdmin):
         "status",
         "platform_access_enabled",
         "subscription_plan",
+        "max_users",
         "user_count",
+        "sms_segments_30d_display",
         "created_at",
     ]
     list_filter = [
@@ -63,6 +154,7 @@ class ChurchAdmin(admin.ModelAdmin):
         "is_trial_active",
         "is_subscription_active",
         "days_until_expiry",
+        "last_subscription_reminder_at",
         "created_at",
         "updated_at",
     ]
@@ -73,6 +165,25 @@ class ChurchAdmin(admin.ModelAdmin):
             request, queryset, search_term
         )
         return queryset, use_distinct
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "subscription_plan":
+            rows = list(
+                SubscriptionPlanSetting.objects.order_by("sort_order", "plan_code")
+            )
+            if rows:
+                kwargs["choices"] = [
+                    (
+                        r.plan_code,
+                        (
+                            f"{r.label} ({r.plan_code})"
+                            if (r.label or "").strip()
+                            else r.plan_code
+                        ),
+                    )
+                    for r in rows
+                ]
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     fieldsets = (
         (
@@ -107,6 +218,7 @@ class ChurchAdmin(admin.ModelAdmin):
                     "is_trial_active",
                     "is_subscription_active",
                     "days_until_expiry",
+                    "last_subscription_reminder_at",
                 )
             },
         ),
@@ -143,8 +255,69 @@ class ChurchAdmin(admin.ModelAdmin):
     user_count.short_description = "Users"
 
     def get_queryset(self, request):
-        """Optimize queries"""
-        return super().get_queryset(request).prefetch_related("users")
+        """Optimize queries + SMS segments in last 30 days per church."""
+        from datetime import timedelta
+
+        from django.db.models import OuterRef, Subquery, Sum
+        from django.db.models.functions import Coalesce
+        from django.utils import timezone
+
+        from notifications.models import SMSLog
+
+        thirty = timezone.now() - timedelta(days=30)
+        seg_sq = (
+            SMSLog.objects.filter(
+                church_id=OuterRef("pk"),
+                created_at__gte=thirty,
+            )
+            .values("church_id")
+            .annotate(s=Sum("sms_count"))
+            .values("s")[:1]
+        )
+        return (
+            super()
+            .get_queryset(request)
+            .filter(deleted_at__isnull=True)
+            .prefetch_related("users")
+            .annotate(_sms30=Coalesce(Subquery(seg_sq), 0))
+        )
+
+    def sms_segments_30d_display(self, obj):
+        v = getattr(obj, "_sms30", None)
+        if v is None:
+            return "—"
+        return int(v)
+
+    sms_segments_30d_display.short_description = "SMS segments (30d)"
+    sms_segments_30d_display.admin_order_field = "_sms30"
+
+    def get_urls(self):
+        from accounts import platform_views
+
+        return [
+            path(
+                "platform-directory/toggle-access/<uuid:church_id>/",
+                self.admin_site.admin_view(platform_views.toggle_platform_access_view),
+                name="accounts_church_toggle_platform_access",
+            ),
+            path(
+                "platform-directory/",
+                self.admin_site.admin_view(platform_views.platform_directory_view),
+                name="accounts_church_platform_directory",
+            ),
+            path(
+                "subscription-reminders/",
+                self.admin_site.admin_view(platform_views.subscription_reminders_view),
+                name="accounts_church_subscription_reminders",
+            ),
+            path(
+                "send-reminder/<uuid:church_id>/",
+                self.admin_site.admin_view(
+                    platform_views.send_subscription_reminder_view
+                ),
+                name="accounts_church_send_reminder",
+            ),
+        ] + super().get_urls()
 
 
 @admin.register(User)
@@ -774,10 +947,10 @@ class RegistrationSessionAdmin(admin.ModelAdmin):
     is_expired_display.admin_order_field = "expires_at"
 
 
-# Customize admin site
-admin.site.site_header = "OpenDoor Church Management"
-admin.site.site_title = "OpenDoor Admin"
-admin.site.index_title = "Administration Dashboard"
+# Customize admin site (platform operations)
+admin.site.site_header = "OpenDoor Platform Administration"
+admin.site.site_title = "Platform Admin"
+admin.site.index_title = "Welcome — control every church from one place"
 
 
 # Hide framework/internal models - show only setup and church management
@@ -829,35 +1002,8 @@ def _unregister_unwanted_admin_models():
     except ImportError:
         pass
 
-    # Celery beat / results (periodic tasks, task results)
-    try:
-        from django_celery_beat.models import (
-            ClockedSchedule,
-            CrontabSchedule,
-            IntervalSchedule,
-            PeriodicTask,
-            SolarSchedule,
-        )
-
-        for m in (
-            PeriodicTask,
-            ClockedSchedule,
-            IntervalSchedule,
-            CrontabSchedule,
-            SolarSchedule,
-        ):
-            try:
-                admin.site.unregister(m)
-            except admin.sites.NotRegistered:
-                pass
-    except ImportError:
-        pass
-    try:
-        from django_celery_results.models import TaskResult
-
-        admin.site.unregister(TaskResult)
-    except (ImportError, admin.sites.NotRegistered):
-        pass
+    # Celery beat / results: left registered so PeriodicTask, CrontabSchedule,
+    # IntervalSchedule, TaskResult, etc. remain visible for operations monitoring.
 
 
 _unregister_unwanted_admin_models()

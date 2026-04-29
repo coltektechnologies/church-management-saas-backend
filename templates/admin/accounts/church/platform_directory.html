@@ -1,0 +1,92 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+  &rsaquo; <a href="{% url 'admin:accounts_church_changelist' %}">{% trans "Churches" %}</a>
+  &rsaquo; {% trans "Platform directory" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="pf-panel" style="margin-bottom:1rem;">
+  <p class="pf-muted" style="margin:0;">
+    {% trans "One page with every tenant: member counts, staff users, SMS volume, subscription dates, and links into Users and Members filtered for that church." %}
+    <a href="{% url 'admin:accounts_church_subscription_reminders' %}">{% trans "Subscription reminders" %}</a>
+  </p>
+</div>
+
+<div class="pf-table-wrap" style="overflow-x:auto;">
+  <table class="pf-table">
+    <thead>
+      <tr>
+        <th>{% trans "Church" %}</th>
+        <th>{% trans "Subdomain" %}</th>
+        <th>{% trans "Location" %}</th>
+        <th>{% trans "Plan" %}</th>
+        <th>{% trans "Status" %}</th>
+        <th>{% trans "Trial ends" %}</th>
+        <th>{% trans "Subscription ends" %}</th>
+        <th>{% trans "Users (active / max)" %}</th>
+        <th>{% trans "Members" %}</th>
+        <th>{% trans "SMS seg. 30d" %}</th>
+        <th>{% trans "Login / API access" %}</th>
+        <th>{% trans "Actions" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in churches %}
+      <tr>
+        <td>
+          <strong><a href="{% url 'admin:accounts_church_change' c.id %}">{{ c.name }}</a></strong><br>
+          <span class="pf-muted" style="font-size:0.78rem;">{{ c.email }}</span>
+        </td>
+        <td>{{ c.subdomain }}</td>
+        <td>{{ c.city }}, {{ c.country }}</td>
+        <td>{{ c.subscription_plan }}</td>
+        <td>{{ c.status }}</td>
+        <td>{% if c.trial_ends_at %}{{ c.trial_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if c.subscription_ends_at %}{{ c.subscription_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{{ c.dir_user_count }} / {{ c.max_users }}</td>
+        <td>{{ c.dir_member_count }}</td>
+        <td>{{ c.dir_sms30 }}</td>
+        <td style="vertical-align:middle;">
+          <div style="display:flex;flex-direction:column;gap:0.45rem;align-items:flex-start;">
+            <span style="font-size:0.82rem;">
+              {% if c.platform_access_enabled %}
+                <span style="color:#047857;font-weight:700;">{% trans "ON" %}</span>
+              {% else %}
+                <span style="color:#b91c1c;font-weight:700;">{% trans "OFF" %}</span>
+                <span class="pf-muted">({% trans "blocked" %})</span>
+              {% endif %}
+            </span>
+            <form method="post" action="{% url 'admin:accounts_church_toggle_platform_access' c.id %}" style="margin:0;">
+              {% csrf_token %}
+              {% if c.platform_access_enabled %}
+                <input type="hidden" name="enabled" value="false" />
+                <button type="submit" class="button" style="background:#b91c1c;color:#fff;border:none;padding:0.35rem 0.65rem;border-radius:6px;font-size:0.8rem;cursor:pointer;">
+                  {% trans "Turn OFF access" %}
+                </button>
+              {% else %}
+                <input type="hidden" name="enabled" value="true" />
+                <button type="submit" class="button" style="background:#047857;color:#fff;border:none;padding:0.35rem 0.65rem;border-radius:6px;font-size:0.8rem;cursor:pointer;">
+                  {% trans "Turn ON access" %}
+                </button>
+              {% endif %}
+            </form>
+          </div>
+        </td>
+        <td style="white-space:nowrap;">
+          <a href="{% url 'admin:accounts_user_changelist' %}?church__id__exact={{ c.id }}">{% trans "Users" %}</a>
+          ·
+          <a href="{% url 'admin:members_member_changelist' %}?church__id__exact={{ c.id }}">{% trans "Members" %}</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="12">{% trans "No churches." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

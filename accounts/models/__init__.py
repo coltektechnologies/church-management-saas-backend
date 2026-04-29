@@ -1,7 +1,17 @@
-from .base_models import (AuditLog, Church, ChurchGroup, ChurchGroupMember,
-                          Permission, Role, RolePermission, User, UserRole)
+from .base_models import (
+    AuditLog,
+    Church,
+    ChurchGroup,
+    ChurchGroupMember,
+    Permission,
+    Role,
+    RolePermission,
+    User,
+    UserRole,
+)
 from .payment import Payment
 from .registration_session import RegistrationSession
+from .subscription_plan_setting import SubscriptionPlanSetting
 
 # This makes the models available when importing from accounts.models
 __all__ = [
@@ -16,4 +26,5 @@ __all__ = [
     "AuditLog",
     "Payment",
     "RegistrationSession",
+    "SubscriptionPlanSetting",
 ]

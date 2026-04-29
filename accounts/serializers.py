@@ -154,6 +154,15 @@ class ChurchRegistrationStep1Serializer(serializers.Serializer):
         return value
 
 
+def get_registration_signup_roles_queryset():
+    """
+    Church roles allowed when choosing the registering admin (signup step 2).
+    Matches seeded catalog in accounts.seed.roles_catalog: leadership & core staff
+    (levels 1–3), excludes Member (4) and Visitor (5).
+    """
+    return Role.objects.filter(level__lt=4).order_by("level", "name")
+
+
 class ChurchRegistrationStep2Serializer(serializers.Serializer):
     """Step 2: Primary Admin Information"""
 
@@ -161,14 +170,7 @@ class ChurchRegistrationStep2Serializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=150, trim_whitespace=True)
     admin_email = serializers.EmailField()
     phone_number = serializers.CharField(max_length=50)
-    position = serializers.ChoiceField(
-        choices=[
-            ("PASTOR", "Pastor"),
-            ("FIRST_ELDER", "First Elder"),
-            ("SENIOR_PASTOR", "Senior Pastor"),
-            ("PRESIDING_ELDER", "Presiding Elder"),
-        ]
-    )
+    role_id = serializers.UUIDField()
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
 
@@ -201,6 +203,13 @@ class ChurchRegistrationStep2Serializer(serializers.Serializer):
             raise serializers.ValidationError("Please enter a valid phone number")
         return value
 
+    def validate_role_id(self, value):
+        if not get_registration_signup_roles_queryset().filter(pk=value).exists():
+            raise serializers.ValidationError(
+                "Invalid role. Pick one of the roles listed for church signup."
+            )
+        return value
+
     def validate_password(self, value):
         """Validate password strength"""
         validate_password_strength(value)
@@ -218,14 +227,9 @@ class ChurchRegistrationStep2Serializer(serializers.Serializer):
 class ChurchRegistrationStep3Serializer(serializers.Serializer):
     """Step 3: Subscription Plan Selection"""
 
-    subscription_plan = serializers.ChoiceField(
-        choices=[
-            ("TRIAL", "30-Day Free Trial"),
-            ("FREE", "Free"),
-            ("BASIC", "Basic"),
-            ("PREMIUM", "Premium"),
-            ("ENTERPRISE", "Enterprise"),
-        ]
+    subscription_plan = serializers.CharField(
+        max_length=20,
+        help_text="Plan code from GET /api/auth/registration/plans/ (catalog managed in Django admin).",
     )
     # Values that mean 2-week trial (14 days); everything else = 30-day trial
     TRIAL_2WEEK_VALUES = ("14", "2 weeks", "2_weeks", "2weeks")
@@ -235,6 +239,26 @@ class ChurchRegistrationStep3Serializer(serializers.Serializer):
         allow_blank=True,
         help_text='MONTHLY, YEARLY (paid); "2 weeks" or "14" = 2-week trial, "" = 30-day trial (TRIAL plan)',
     )
+
+    def validate_subscription_plan(self, value):
+        """Allow only active catalog rows (fallback to legacy codes if catalog empty)."""
+        from .models.subscription_plan_setting import SubscriptionPlanSetting
+
+        raw = (value or "").strip()
+        canonical_map = {}
+        for code in SubscriptionPlanSetting.objects.filter(is_active=True).values_list(
+            "plan_code", flat=True
+        ):
+            canonical_map[str(code).strip().upper()] = str(code).strip()
+        if not canonical_map:
+            for legacy in ("TRIAL", "FREE", "BASIC", "PREMIUM", "ENTERPRISE"):
+                canonical_map[legacy] = legacy
+        key = raw.upper()
+        if key not in canonical_map:
+            raise serializers.ValidationError(
+                "Unknown or inactive plan. Refresh the pricing page and pick an option."
+            )
+        return canonical_map[key]
 
     def _is_trial_2_weeks(self, cycle):
         return (cycle or "").strip().lower() in {
@@ -369,7 +393,7 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
     last_name = serializers.CharField()
     admin_email = serializers.EmailField()
     phone_number = serializers.CharField()
-    position = serializers.CharField()
+    role_id = serializers.UUIDField()
     password = serializers.CharField(write_only=True)
 
     # Step 3 data
@@ -505,26 +529,8 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
             email_verified=True,  # Auto-verify on registration
         )
 
-        # Determine role based on position
-        position_role_map = {
-            "PASTOR": "Pastor",
-            "SENIOR_PASTOR": "Pastor",
-            "FIRST_ELDER": "First Elder",
-            "PRESIDING_ELDER": "First Elder",
-        }
-        role_name = position_role_map.get(validated_data["position"], "Pastor")
+        role = Role.objects.get(pk=validated_data["role_id"])
 
-        # Get or create role
-        role, created = Role.objects.get_or_create(
-            name=role_name,
-            defaults={
-                "level": 1,
-                "description": f"{role_name} - Full administrative access",
-                "is_system_role": True,
-            },
-        )
-
-        # Assign role to user
         UserRole.objects.create(
             user=admin_user,
             role=role,

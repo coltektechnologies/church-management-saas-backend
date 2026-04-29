@@ -27,9 +27,11 @@ from .views import (
     registration_initialize_payment,
     registration_payment_callback,
     registration_plans,
+    registration_positions,
     registration_step1,
     registration_step2,
     registration_step3,
+    registration_validate_email,
     registration_verify_payment,
 )
 
@@ -50,6 +52,16 @@ urlpatterns = [
         "registration/plans/",
         registration_plans,
         name="registration-plans",
+    ),
+    path(
+        "registration/positions/",
+        registration_positions,
+        name="registration-positions",
+    ),
+    path(
+        "registration/validate-email/",
+        registration_validate_email,
+        name="registration-validate-email",
     ),
     path(
         "registration/step1/",
