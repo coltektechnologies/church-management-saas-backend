@@ -1,11 +1,92 @@
 {% extends "admin/base_site.html" %}
 {% load i18n %}
 
+{% block extrastyle %}
+{{ block.super }}
+<style>
+  #backup-progress-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(15, 23, 42, 0.55);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 1.5rem;
+    box-sizing: border-box;
+  }
+  #backup-progress-overlay.od-visible {
+    display: flex;
+  }
+  .od-backup-progress-card {
+    background: var(--body-bg, #fff);
+    color: var(--body-fg, #0f172a);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+  }
+  html[data-theme="dark"] .od-backup-progress-card {
+    border-color: rgba(248, 250, 252, 0.12);
+  }
+  .od-backup-progress-title {
+    margin: 0 0 0.75rem 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+  .od-backup-progress-track {
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.12);
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+  }
+  html[data-theme="dark"] .od-backup-progress-track {
+    background: rgba(248, 250, 252, 0.15);
+  }
+  .od-backup-progress-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #2fc4b2, #26a899);
+    transition: width 0.2s ease-out;
+  }
+  .od-backup-progress-pct {
+    font-size: 1.25rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+  .od-backup-progress-hint {
+    margin: 0.65rem 0 0 0;
+    font-size: 0.85rem;
+    opacity: 0.85;
+    line-height: 1.4;
+  }
+</style>
+{% endblock %}
+
 {% block content %}
 <h1>{{ title }}</h1>
 <p>Choose the backup type and optionally add notes. The backup will be saved under your backup folder and appear in the list.</p>
 
-<form method="post" id="create-backup-form">
+<div id="backup-progress-overlay" role="status" aria-live="polite" aria-labelledby="backup-progress-title">
+  <div class="od-backup-progress-card">
+    <p id="backup-progress-title" class="od-backup-progress-title">{% trans "Starting backup…" %}</p>
+    <div class="od-backup-progress-track" aria-hidden="true">
+      <div class="od-backup-progress-fill" id="backup-progress-fill"></div>
+    </div>
+    <div class="od-backup-progress-pct"><span id="backup-progress-num">0</span>%</div>
+    <p class="od-backup-progress-hint">
+      {% trans "Sending the job to Celery — you should jump to the list in a second. Large exports still run in the worker afterwards." %}
+    </p>
+  </div>
+</div>
+
+<form method="post" id="create-backup-form" action="">
   {% csrf_token %}
   <div class="form-row" style="margin-bottom: 16px;">
     <label for="backup_type" style="display:block; font-weight: 600; margin-bottom: 6px;">Backup type</label>
@@ -33,7 +114,7 @@
            style="width: 100%; max-width: 400px; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px;">
   </div>
   <div class="submit-row">
-    <input type="submit" value="Create backup now" class="default" style="padding: 10px 20px; background: #417690; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
+    <input type="submit" id="create-backup-submit" value="Create backup now" class="default" style="padding: 10px 20px; background: #417690; color: #fff; border: none; border-radius: 4px; cursor: pointer;">
     <a href="{% url 'admin:backup_backuprecord_changelist' %}" class="button cancel-link" style="margin-left: 12px;">Cancel</a>
   </div>
 </form>
@@ -46,6 +127,33 @@
   }
   backupType.addEventListener('change', toggleChurch);
   toggleChurch();
+
+  var form = document.getElementById('create-backup-form');
+  var overlay = document.getElementById('backup-progress-overlay');
+  var fill = document.getElementById('backup-progress-fill');
+  var numEl = document.getElementById('backup-progress-num');
+  var submitBtn = document.getElementById('create-backup-submit');
+
+  function setProgress(pct) {
+    pct = Math.max(0, Math.min(100, Math.round(pct)));
+    fill.style.width = pct + '%';
+    numEl.textContent = String(pct);
+  }
+
+  /* Native POST: no fetch(). Progress runs until the server responds and the browser navigates away. */
+  form.addEventListener('submit', function() {
+    overlay.classList.add('od-visible');
+    submitBtn.disabled = true;
+    var pct = 0;
+    setProgress(0);
+    setInterval(function() {
+      if (pct < 99) {
+        pct += Math.max(0.15, (99 - pct) * 0.02 + Math.random() * 0.9);
+        if (pct > 99) pct = 99;
+        setProgress(pct);
+      }
+    }, 350);
+  });
 })();
 </script>
 {% endblock %}

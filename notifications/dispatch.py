@@ -7,6 +7,7 @@ from django.utils import timezone
 from accounts.notification_utils import church_can_use_sms_email
 
 from .models import EmailLog, Notification, NotificationTemplate, SMSLog
+from .sms_pricing import apply_sms_log_segment_cost
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +148,7 @@ class SMSService:
                 # Fallback: mark as sent for testing
                 sms_log.status = "SENT"
                 sms_log.sent_at = timezone.now()
+                apply_sms_log_segment_cost(sms_log)
                 sms_log.save()
                 logger.info(
                     f"SMS (Test Mode): {sms_log.phone_number} - {sms_log.message}"
@@ -184,6 +186,7 @@ class SMSService:
                 mid = result.get("id") or result.get("message_id")
                 if mid:
                     sms_log.gateway_message_id = str(mid)[:100]
+                apply_sms_log_segment_cost(sms_log)
             sms_log.save()
             return sms_log
         except Exception as e:
@@ -220,6 +223,8 @@ class SMSService:
                 sms_log.status = "FAILED"
                 sms_log.error_message = "No recipients in response"
 
+            if sms_log.status == "SENT":
+                apply_sms_log_segment_cost(sms_log)
             sms_log.save()
             return sms_log
 
@@ -253,6 +258,7 @@ class SMSService:
             sms_log.status = "SENT"
             sms_log.delivery_status = message.status
             sms_log.sent_at = timezone.now()
+            apply_sms_log_segment_cost(sms_log)
             sms_log.save()
 
             return sms_log

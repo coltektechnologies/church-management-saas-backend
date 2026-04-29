@@ -14,7 +14,7 @@ All endpoints require **platform admin** (JWT with `is_platform_admin=True`).
 
 ## Automated backup
 
-Celery Beat runs `backup.tasks.run_automated_backup` daily at 02:00. Backups are stored under `BACKUP_ROOT` (default: `media/backups/`). Set `BACKUP_ROOT` in settings or env to change location.
+Celery Beat runs `backup.tasks.run_automated_backup` every **Sunday at 00:00** (midnight, `TIME_ZONE` / `CELERY_TIMEZONE`). Backups are stored under `BACKUP_ROOT` (default: `media/backups/`). Set `BACKUP_ROOT` in settings or env to change location.
 
 ## Tenant export (GDPR)
 

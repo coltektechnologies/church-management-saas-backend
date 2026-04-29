@@ -21,3 +21,7 @@ logs/
 .pytest_cache/
 .mypy_cache/
 logs/django.log
+
+# Celery Beat local scheduler file
+celerybeat-schedule
+celerybeat-schedule.*

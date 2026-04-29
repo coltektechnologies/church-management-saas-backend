@@ -4,6 +4,7 @@ import uuid
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.validators import EmailValidator
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_yasg import openapi
@@ -54,9 +55,37 @@ from .serializers import (
     UserRoleSerializer,
     UserSerializer,
     UserUpdateSerializer,
+    get_registration_signup_roles_queryset,
 )
 
 logger = logging.getLogger(__name__)
+
+_EMAIL_VALIDATOR = EmailValidator()
+
+
+def _email_domain_can_receive_mail(domain: str):
+    """
+    Best-effort DNS: MX preferred; fallback A record.
+    False = domain unlikely to receive mail; None = skip (dnspython missing).
+    """
+    domain = (domain or "").strip().lower().rstrip(".")
+    if not domain:
+        return False
+    try:
+        import dns.resolver
+    except ImportError:
+        return None
+    try:
+        mx = dns.resolver.resolve(domain, "MX")
+        if mx:
+            return True
+    except Exception:
+        pass
+    try:
+        dns.resolver.resolve(domain, "A")
+        return True
+    except Exception:
+        return False
 
 
 def _client_ip(request):
@@ -1873,11 +1902,31 @@ REGISTRATION_PLAN_CHOICES = [
 def registration_plans(request):
     """
     Return list of subscription plans for the frontend (pricing, features, etc.).
-    Single source of truth for registration plan options.
+    Rows come from Django admin → Subscription plan defaults (`is_active` = shown here).
+    If the catalog is empty, falls back to legacy built-in tiers.
     """
+    from .models.subscription_plan_setting import SubscriptionPlanSetting
+
     serializer = ChurchRegistrationStep3Serializer()
+
+    catalog = list(
+        SubscriptionPlanSetting.objects.filter(is_active=True).order_by(
+            "sort_order", "plan_code"
+        )
+    )
+
     plans = []
-    for plan_id, plan_name in REGISTRATION_PLAN_CHOICES:
+    if catalog:
+        iterable = catalog
+    else:
+        iterable = REGISTRATION_PLAN_CHOICES
+
+    for row in iterable:
+        if catalog:
+            plan_id = row.plan_code
+            plan_name = (row.label or "").strip() or plan_id
+        else:
+            plan_id, plan_name = row[0], row[1]
         details_m = serializer.get_plan_details(plan_id, "MONTHLY")
         details_y = (
             serializer.get_plan_details(plan_id, "YEARLY")
@@ -1890,18 +1939,124 @@ def registration_plans(request):
         yearly_price = (
             details_y.get("total_price", 0) if plan_id not in ("TRIAL", "FREE") else 0
         )
-        plans.append(
-            {
-                "id": plan_id,
-                "name": plan_name,
-                "monthly_price": monthly_price,
-                "yearly_price": yearly_price,
-                "description": details_m.get("description", ""),
-                "features": details_m.get("features", []),
-                "requires_payment": details_m.get("requires_payment", False),
-            }
-        )
+        entry = {
+            "id": plan_id,
+            "name": plan_name,
+            "monthly_price": monthly_price,
+            "yearly_price": yearly_price,
+            "description": details_m.get("description", ""),
+            "features": details_m.get("features", []),
+            "requires_payment": details_m.get("requires_payment", False),
+        }
+        if catalog and getattr(row, "max_users_default", None) is not None:
+            entry["max_users_default"] = row.max_users_default
+        plans.append(entry)
     return Response(plans)
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def registration_positions(request):
+    """
+    Roles from DB for signup step 2 (levels 1–3: leadership & core staff; excludes Member/Visitor).
+    Must match `get_registration_signup_roles_queryset()` and ChurchRegistrationStep2Serializer.role_id.
+    """
+    roles = get_registration_signup_roles_queryset()
+    return Response(
+        [{"value": str(r.id), "label": r.name, "level": r.level} for r in roles]
+    )
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def registration_validate_email(request):
+    """
+    Pre-flight email check for signup: format, DNS/MX domain (best-effort), and uniqueness
+    in Church (church scope) or User (admin scope). Does not prove the mailbox exists.
+    """
+    email_raw = (request.data.get("email") or "").strip()
+    scope = (request.data.get("scope") or "admin").strip().lower()
+    if scope not in ("church", "admin"):
+        scope = "admin"
+
+    if not email_raw:
+        return Response(
+            {
+                "ok": False,
+                "reason": "required",
+                "message": "Email is required",
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        _EMAIL_VALIDATOR(email_raw)
+    except ValidationError:
+        return Response(
+            {
+                "ok": False,
+                "reason": "invalid_format",
+                "message": "Enter a valid email address",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    email = email_raw.lower()
+    parts = email.rsplit("@", 1)
+    if len(parts) != 2 or not parts[1]:
+        return Response(
+            {
+                "ok": False,
+                "reason": "invalid_format",
+                "message": "Enter a valid email address",
+            },
+            status=status.HTTP_200_OK,
+        )
+    domain = parts[1]
+
+    domain_ok = _email_domain_can_receive_mail(domain)
+    if domain_ok is False:
+        return Response(
+            {
+                "ok": False,
+                "reason": "bad_domain",
+                "message": (
+                    "That domain does not appear set up for email (no mail servers found). "
+                    "Check for typos in the address."
+                ),
+                "available": False,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    if scope == "church":
+        taken = Church.objects.filter(email=email).exists()
+        msg = "This church email is already registered"
+    else:
+        taken = User.objects.filter(email=email).exists()
+        msg = "This email is already registered"
+
+    if taken:
+        return Response(
+            {
+                "ok": False,
+                "reason": "taken",
+                "message": msg,
+                "available": False,
+                "domain_checked": domain_ok is not None,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    return Response(
+        {
+            "ok": True,
+            "available": True,
+            "domain_checked": domain_ok is not None,
+            "message": None,
+        },
+        status=status.HTTP_200_OK,
+    )
 
 
 @api_view(["POST"])
@@ -1963,12 +2118,17 @@ def registration_step2(request):
 
     serializer = ChurchRegistrationStep2Serializer(data=request.data)
     if serializer.is_valid():
-        # Update the session with step 2 data
-        session.data["admin"] = serializer.validated_data
+        # Store JSON-serializable dict (UUID → str)
+        admin_payload = dict(serializer.validated_data)
+        rid = admin_payload.get("role_id")
+        if rid is not None:
+            admin_payload["role_id"] = str(rid)
+        session.data["admin"] = admin_payload
         session.step = 2
         session.expires_at = timezone.now() + timezone.timedelta(hours=1)
         session.save()
 
+        role = Role.objects.get(pk=serializer.validated_data["role_id"])
         return Response(
             {
                 "status": "success",
@@ -1978,7 +2138,8 @@ def registration_step2(request):
                     "email": serializer.validated_data["admin_email"],
                     "first_name": serializer.validated_data["first_name"],
                     "last_name": serializer.validated_data["last_name"],
-                    "position": serializer.validated_data["position"],
+                    "role_id": str(serializer.validated_data["role_id"]),
+                    "role_name": role.name,
                 },
             }
         )
@@ -2200,7 +2361,7 @@ def registration_initialize_payment(request):
                 "last_name": step2_data.get("last_name"),
                 "admin_email": step2_data.get("admin_email"),
                 "phone_number": step2_data.get("phone_number"),
-                "position": step2_data.get("position"),
+                "role_id": step2_data.get("role_id"),
                 "password": step2_data.get("password"),
                 "subscription_plan": sub_plan,
                 "billing_cycle": _normalize_billing_cycle(
@@ -2507,7 +2668,7 @@ def registration_verify_payment(request):
             "last_name": step2_data.get("last_name"),
             "admin_email": step2_data.get("admin_email"),
             "phone_number": step2_data.get("phone_number"),
-            "position": step2_data.get("position"),
+            "role_id": step2_data.get("role_id"),
             "password": step2_data.get("password"),
             # Step 3 data
             "subscription_plan": step3_data.get("subscription_plan"),
@@ -2671,7 +2832,7 @@ def registration_verify_payment(request):
             "last_name": step2_data.get("last_name"),
             "admin_email": step2_data.get("admin_email"),
             "phone_number": step2_data.get("phone_number"),
-            "position": step2_data.get("position"),
+            "role_id": step2_data.get("role_id"),
             "password": step2_data.get("password"),
             "subscription_plan": step3_data.get("subscription_plan"),
             "billing_cycle": _normalize_billing_cycle(

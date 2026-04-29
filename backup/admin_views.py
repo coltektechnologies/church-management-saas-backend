@@ -4,6 +4,7 @@ Admin-only view: create a database backup (full, lightweight, or tenant); downlo
 
 import os
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
 from django.http import FileResponse, Http404
@@ -44,19 +45,52 @@ def admin_create_backup(request):
                 },
             )
 
-        record, err = BackupService.create(
-            backup_type=backup_type,
-            created_by_id=created_by_id,
-            notes=notes,
-            church_id=church_id,
-        )
-        if err:
-            messages.error(request, f"Backup failed: {err}")
-        else:
-            messages.success(
+        # Background worker: HTTP returns immediately (dumpdata can take 30+ minutes).
+        # CELERY_TASK_ALWAYS_EAGER runs the task in-process and would still block — avoid that for this path.
+        if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
+            messages.warning(
                 request,
-                f"Backup created: {record.get_backup_type_display()} — {record.file_path} ({record.file_size_bytes or 0:,} bytes)",
+                "CELERY_TASK_ALWAYS_EAGER is enabled, so backup cannot run in the background. "
+                "Turn it off and run a Celery worker, or expect this request to take a long time.",
             )
+            record, err = BackupService.create(
+                backup_type=backup_type,
+                created_by_id=created_by_id,
+                notes=notes,
+                church_id=church_id,
+                lock_wait_seconds=300,
+            )
+            if err:
+                messages.error(request, f"Backup failed: {err}")
+            else:
+                messages.success(
+                    request,
+                    f"Backup created: {record.get_backup_type_display()} — {record.file_path} "
+                    f"({record.file_size_bytes or 0:,} bytes)",
+                )
+            return redirect("admin:backup_backuprecord_changelist")
+
+        try:
+            from backup.tasks import run_admin_backup_task
+
+            run_admin_backup_task.delay(
+                backup_type,
+                notes,
+                church_id,
+                created_by_id,
+            )
+        except Exception as exc:
+            messages.error(
+                request,
+                f"Could not queue backup (is Redis running and Celery configured?): {exc}",
+            )
+            return redirect("admin:backup_backuprecord_changelist")
+
+        messages.success(
+            request,
+            "Backup started in the background. Refresh the backup list in a few minutes — "
+            "large databases take longer. Keep a Celery worker running.",
+        )
         return redirect("admin:backup_backuprecord_changelist")
 
     return render(

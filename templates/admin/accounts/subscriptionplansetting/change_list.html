@@ -1,0 +1,18 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools %}
+<div class="od-catalog-banner">
+  <div class="od-catalog-banner-inner">
+    <strong>{% trans "Plan catalog" %}</strong>
+    <p>
+      {% trans "Add a row for each tier (unique plan code). Toggle “Visible on site” to show or hide plans on the public pricing / registration API. Editing the code of an existing row is disabled so linked churches stay consistent." %}
+    </p>
+    <ul class="od-catalog-actions">
+      <li><span class="od-dot"></span>{% trans "Add" %}: {% trans 'use “Add subscription plan default” above' %}</li>
+      <li><span class="od-dot od-dot-mint"></span>{% trans "Delete" %}: {% trans 'select rows → Action → Delete' %}</li>
+    </ul>
+  </div>
+</div>
+{{ block.super }}
+{% endblock %}

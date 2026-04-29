@@ -5,11 +5,11 @@ Backups stored under BACKUP_ROOT (default: media/backups/).
 
 import os
 from datetime import datetime
-from io import StringIO
 
 from django.conf import settings
 from django.core.management import call_command
 
+from backup.locks import acquire_backup_lock
 from backup.models import BackupRecord
 
 
@@ -42,15 +42,39 @@ class BackupService:
     """Create DB backup (full, lightweight, or tenant), list backups, restore from backup."""
 
     @staticmethod
-    def create(backup_type=None, created_by_id=None, notes="", church_id=None):
+    def create(
+        backup_type=None,
+        created_by_id=None,
+        notes="",
+        church_id=None,
+        *,
+        lock_wait_seconds=7100,
+    ):
         """
         Create a backup. backup_type: full, lightweight, or tenant.
         For tenant, church_id is required.
+        lock_wait_seconds: max time to wait for the Redis export lock (use lower values for HTTP admin).
         Returns (BackupRecord, error_message). error_message is None on success.
         """
         backup_type = backup_type or BackupRecord.BACKUP_TYPE_FULL
         if backup_type == BackupRecord.BACKUP_TYPE_TENANT and not church_id:
             return None, "Church is required for tenant backup."
+
+        lock, got = acquire_backup_lock(
+            blocking=True,
+            blocking_timeout_s=lock_wait_seconds,
+        )
+        if not got:
+            if lock is None:
+                return (
+                    None,
+                    "Cannot start backup: Redis is unreachable (needed to avoid "
+                    "concurrent exports). Start Redis or check CELERY_BROKER_URL.",
+                )
+            return (
+                None,
+                "Another backup is already running. Wait until it finishes, then try again.",
+            )
 
         ensure_backup_dir()
         root = get_backup_root()
@@ -58,23 +82,58 @@ class BackupService:
         filename = f"backup_{backup_type}_{stamp}.json"
         file_path = os.path.join(root, filename)
 
-        if backup_type == BackupRecord.BACKUP_TYPE_TENANT:
-            from backup.services.tenant_export_import import \
-                TenantExportImportService
+        try:
+            if backup_type == BackupRecord.BACKUP_TYPE_TENANT:
+                from backup.services.tenant_export_import import (
+                    TenantExportImportService,
+                )
 
-            data, err = TenantExportImportService.export_tenant_data(str(church_id))
-            if err:
-                return None, err
+                data, err = TenantExportImportService.export_tenant_data(str(church_id))
+                if err:
+                    return None, err
+                try:
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(data)
+                    size = os.path.getsize(file_path)
+                    record = BackupRecord.objects.create(
+                        backup_type=backup_type,
+                        file_path=file_path,
+                        file_size_bytes=size,
+                        created_by_id=created_by_id,
+                        church_id=church_id,
+                        notes=(notes or "")[:255],
+                    )
+                    return record, None
+                except Exception as e:
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except OSError:
+                            pass
+                    return None, str(e)
+
+            # full or lightweight: dumpdata
+            exclude = ["sessions.Session", "contenttypes.ContentType", "admin.LogEntry"]
+            if backup_type == BackupRecord.BACKUP_TYPE_LIGHTWEIGHT:
+                exclude = LIGHTWEIGHT_EXCLUDE
+
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
-                    f.write(data)
+                    call_command(
+                        "dumpdata",
+                        "--natural-foreign",
+                        "--natural-primary",
+                        "--indent",
+                        "2",
+                        exclude=exclude,
+                        stdout=f,
+                    )
                 size = os.path.getsize(file_path)
                 record = BackupRecord.objects.create(
                     backup_type=backup_type,
                     file_path=file_path,
                     file_size_bytes=size,
                     created_by_id=created_by_id,
-                    church_id=church_id,
                     notes=(notes or "")[:255],
                 )
                 return record, None
@@ -85,39 +144,11 @@ class BackupService:
                     except OSError:
                         pass
                 return None, str(e)
-
-        # full or lightweight: dumpdata
-        exclude = ["sessions.Session", "contenttypes.ContentType", "admin.LogEntry"]
-        if backup_type == BackupRecord.BACKUP_TYPE_LIGHTWEIGHT:
-            exclude = LIGHTWEIGHT_EXCLUDE
-
-        try:
-            with open(file_path, "w", encoding="utf-8") as f:
-                call_command(
-                    "dumpdata",
-                    "--natural-foreign",
-                    "--natural-primary",
-                    "--indent",
-                    "2",
-                    exclude=exclude,
-                    stdout=f,
-                )
-            size = os.path.getsize(file_path)
-            record = BackupRecord.objects.create(
-                backup_type=backup_type,
-                file_path=file_path,
-                file_size_bytes=size,
-                created_by_id=created_by_id,
-                notes=(notes or "")[:255],
-            )
-            return record, None
-        except Exception as e:
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                except OSError:
-                    pass
-            return None, str(e)
+        finally:
+            try:
+                lock.release()
+            except Exception:
+                pass
 
     @staticmethod
     def list_backups(backup_type=None):
