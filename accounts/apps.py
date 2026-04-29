@@ -7,3 +7,8 @@ class AccountsConfig(AppConfig):
 
     def ready(self):
         import accounts.signals  # noqa: F401
+
+        # Custom admin index (dashboard KPIs + template)
+        from accounts.admin_dashboard import patch_admin_index
+
+        patch_admin_index()

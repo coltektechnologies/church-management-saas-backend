@@ -48,10 +48,10 @@ app.conf.beat_schedule = {
         "task": "files.tasks.cleanup_deleted_files",
         "schedule": crontab(hour=3, minute=0),
     },
-    # Automated full DB backup daily at 02:00
+    # Automated full DB backup weekly: Sundays at 00:00 (midnight, server timezone)
     "run-automated-backup": {
         "task": "backup.tasks.run_automated_backup",
-        "schedule": crontab(hour=2, minute=0),
+        "schedule": crontab(day_of_week=0, hour=0, minute=0),
     },
 }
 

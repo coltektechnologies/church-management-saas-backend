@@ -1,0 +1,105 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% trans "Home" %}</a>
+  &rsaquo; <a href="{% url 'admin:accounts_church_changelist' %}">{% trans "Churches" %}</a>
+  &rsaquo; {% trans "Subscription reminders" %}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="pf-panel" style="margin-bottom:1.25rem;">
+  <p class="pf-muted" style="margin:0;">
+    {% blocktranslate with days=horizon_days %}Trials or paid subscriptions ending within {{ days }} days, plus churches that are already past end date or suspended.{% endblocktranslate %}
+    <a href="{% url 'admin:accounts_church_platform_directory' %}">{% trans "Full platform directory" %}</a>
+  </p>
+</div>
+
+<h2 class="pf-section-heading">{% trans "Expiring soon (next 14 days)" %}</h2>
+<div class="pf-table-wrap" style="margin-bottom:2rem;">
+  <table class="pf-table">
+    <thead>
+      <tr>
+        <th>{% trans "Church" %}</th>
+        <th>{% trans "Contact" %}</th>
+        <th>{% trans "Plan" %}</th>
+        <th>{% trans "Status" %}</th>
+        <th>{% trans "Trial ends" %}</th>
+        <th>{% trans "Subscription ends" %}</th>
+        <th>{% trans "Last reminder" %}</th>
+        <th>{% trans "Action" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in expiring_soon %}
+      <tr>
+        <td><a href="{% url 'admin:accounts_church_change' c.id %}"><strong>{{ c.name }}</strong></a></td>
+        <td>{{ c.email|default:"—" }}</td>
+        <td>{{ c.subscription_plan }}</td>
+        <td>{{ c.status }}</td>
+        <td>{% if c.trial_ends_at %}{{ c.trial_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if c.subscription_ends_at %}{{ c.subscription_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if c.last_subscription_reminder_at %}{{ c.last_subscription_reminder_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>
+          {% if c.email %}
+          <form method="post" action="{% url 'admin:accounts_church_send_reminder' c.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="button" style="padding:0.25rem 0.6rem;">{% trans "Send email" %}</button>
+          </form>
+          {% else %}
+          <span class="pf-muted">{% trans "No email" %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">{% trans "None in this window." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<h2 class="pf-section-heading">{% trans "Expired, past end date, or blocked" %}</h2>
+<div class="pf-table-wrap">
+  <table class="pf-table">
+    <thead>
+      <tr>
+        <th>{% trans "Church" %}</th>
+        <th>{% trans "Contact" %}</th>
+        <th>{% trans "Plan" %}</th>
+        <th>{% trans "Status" %}</th>
+        <th>{% trans "Trial ended" %}</th>
+        <th>{% trans "Subscription ended" %}</th>
+        <th>{% trans "Last reminder" %}</th>
+        <th>{% trans "Action" %}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in expired_or_blocked %}
+      <tr>
+        <td><a href="{% url 'admin:accounts_church_change' c.id %}"><strong>{{ c.name }}</strong></a></td>
+        <td>{{ c.email|default:"—" }}</td>
+        <td>{{ c.subscription_plan }}</td>
+        <td>{{ c.status }}</td>
+        <td>{% if c.trial_ends_at %}{{ c.trial_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if c.subscription_ends_at %}{{ c.subscription_ends_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>{% if c.last_subscription_reminder_at %}{{ c.last_subscription_reminder_at|date:"Y-m-d H:i" }}{% else %}—{% endif %}</td>
+        <td>
+          {% if c.email %}
+          <form method="post" action="{% url 'admin:accounts_church_send_reminder' c.id %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="button" style="padding:0.25rem 0.6rem;">{% trans "Send email" %}</button>
+          </form>
+          {% else %}
+          <span class="pf-muted">{% trans "No email" %}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="8">{% trans "None." %}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

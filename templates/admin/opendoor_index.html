@@ -1,0 +1,188 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    #content-start { scroll-margin-top: 1rem; }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div class="od-dashboard-root">
+{% if dashboard_show %}
+<div class="pf-dash-wrap">
+  <header class="pf-hero">
+    <h1>{% trans "Platform operations" %}</h1>
+    <p>
+      {% trans "Monitor tenants, SMS volume, trials, and plan defaults. Use the shortcuts below or scroll to the full app registry." %}
+    </p>
+  </header>
+
+  <h2 class="pf-section-heading">{% trans "Shortcuts" %}</h2>
+  <nav class="pf-quick-grid" aria-label="{% trans 'Quick navigation' %}">
+    <a class="pf-quick-card" href="{% url 'admin:accounts_church_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">🏛️</span>
+      <span class="pf-ql-title">{% trans "Churches" %}</span>
+      <span class="pf-ql-sub">{% trans "Tenants, plans, suspension, seats" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_church_platform_directory' %}">
+      <span class="pf-ql-icon" aria-hidden="true">🗂️</span>
+      <span class="pf-ql-title">{% trans "Platform directory" %}</span>
+      <span class="pf-ql-sub">{% trans "All churches, users & members at a glance" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_church_subscription_reminders' %}">
+      <span class="pf-ql-icon" aria-hidden="true">⏰</span>
+      <span class="pf-ql-title">{% trans "Expiry reminders" %}</span>
+      <span class="pf-ql-sub">{% trans "Trials ending & renewals; send emails" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_subscriptionplansetting_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">📋</span>
+      <span class="pf-ql-title">{% trans "Plan defaults" %}</span>
+      <span class="pf-ql-sub">{% trans "SMS caps & max users per tier" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:notifications_smslog_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">📱</span>
+      <span class="pf-ql-title">{% trans "SMS log" %}</span>
+      <span class="pf-ql-sub">{% trans "Every send & segment detail" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_user_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">👥</span>
+      <span class="pf-ql-title">{% trans "Users" %}</span>
+      <span class="pf-ql-sub">{% trans "Staff & church accounts" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_auditlog_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">📜</span>
+      <span class="pf-ql-title">{% trans "Audit log" %}</span>
+      <span class="pf-ql-sub">{% trans "Security & change history" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:accounts_payment_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">💳</span>
+      <span class="pf-ql-title">{% trans "Payments" %}</span>
+      <span class="pf-ql-sub">{% trans "Billing records" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:backup_backuprecord_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">💾</span>
+      <span class="pf-ql-title">{% trans "Backup records" %}</span>
+      <span class="pf-ql-sub">{% trans "Database exports & downloads" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:django_celery_results_taskresult_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">✅</span>
+      <span class="pf-ql-title">{% trans "Celery task results" %}</span>
+      <span class="pf-ql-sub">{% trans "Completed / failed tasks (worker must store results)" %}</span>
+    </a>
+    <a class="pf-quick-card" href="{% url 'admin:django_celery_beat_periodictask_changelist' %}">
+      <span class="pf-ql-icon" aria-hidden="true">⏱️</span>
+      <span class="pf-ql-title">{% trans "Periodic tasks (Beat DB)" %}</span>
+      <span class="pf-ql-sub">{% trans "DB schedules; code schedules live in church_saas/celery.py" %}</span>
+    </a>
+  </nav>
+
+  <section aria-labelledby="metrics-heading">
+    <h2 id="metrics-heading" class="pf-section-heading">{% trans "Live metrics" %} <span class="pf-muted">{% trans "(snapshot)" %}</span></h2>
+    <div class="pf-stat-grid">
+      <div class="pf-stat-card accent-teal">
+        <div class="pf-label">{% trans "Churches" %}</div>
+        <div class="pf-value">{{ dashboard_churches_total }}</div>
+        <div class="pf-muted">{% trans "Active (not deleted)" %}</div>
+      </div>
+      <div class="pf-stat-card accent-amber">
+        <div class="pf-label">{% trans "Trial status" %}</div>
+        <div class="pf-value">{{ dashboard_churches_trial }}</div>
+        <div class="pf-muted">{% trans "Churches on trial" %}</div>
+      </div>
+      <div class="pf-stat-card accent-rose">
+        <div class="pf-label">{% trans "Suspended" %}</div>
+        <div class="pf-value">{{ dashboard_churches_suspended }}</div>
+        <div class="pf-muted">{% trans "Require follow-up" %}</div>
+      </div>
+      <div class="pf-stat-card accent-sky">
+        <div class="pf-label">{% trans "SMS segments (30d)" %}</div>
+        <div class="pf-value">{{ dashboard_sms_segments_30d }}</div>
+        <div class="pf-muted">{{ dashboard_sms_count_30d }} {% trans "messages" %}</div>
+      </div>
+      <div class="pf-stat-card accent-violet">
+        <div class="pf-label">{% trans "Platform admins" %}</div>
+        <div class="pf-value">{{ dashboard_platform_admins }}</div>
+        <div class="pf-muted">{% trans "is_platform_admin users" %}</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="pf-two-col">
+    <section class="pf-panel" aria-labelledby="plan-mix-heading">
+      <h3 id="plan-mix-heading">{% trans "Churches by plan" %}</h3>
+      {% if dashboard_plan_breakdown %}
+        <div class="pf-pills">
+          {% for plan, count in dashboard_plan_breakdown.items %}
+            <span class="pf-pill"><strong>{{ plan }}</strong> · {{ count }}</span>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="pf-muted" style="margin:0;">{% trans "No churches yet." %}</p>
+      {% endif %}
+    </section>
+    <section class="pf-panel" aria-labelledby="top-sms-heading">
+      <h3 id="top-sms-heading">{% trans "Top SMS usage (30d)" %}</h3>
+      {% if dashboard_top_sms_churches %}
+        <div class="pf-table-wrap">
+          <table class="pf-table">
+            <thead><tr><th>{% trans "Church" %}</th><th>{% trans "Segments" %}</th></tr></thead>
+            <tbody>
+              {% for row in dashboard_top_sms_churches %}
+                <tr>
+                  <td>{{ row.church__name|default:"—" }}</td>
+                  <td>{{ row.seg }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="pf-muted" style="margin:0;">{% trans "No SMS traffic in the last 30 days." %}</p>
+      {% endif %}
+    </section>
+  </div>
+
+  {% if dashboard_plan_catalog %}
+  <section class="pf-panel" style="margin-top: 1rem;" aria-labelledby="catalog-heading">
+    <h3 id="catalog-heading">{% trans "Plan catalog (defaults)" %}</h3>
+    <div class="pf-table-wrap">
+      <table class="pf-table">
+        <thead>
+          <tr>
+            <th>{% trans "Plan" %}</th>
+            <th>{% trans "On site" %}</th>
+            <th>{% trans "Default max users" %}</th>
+            <th>{% trans "SMS / month cap" %}</th>
+            <th>{% trans "Enforce" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in dashboard_plan_catalog %}
+            <tr>
+              <td><strong>{{ p.plan_code }}</strong>{% if p.label %} — {{ p.label }}{% endif %}</td>
+              <td>{% if p.is_active %}<span class="pf-pill" style="margin:0;">{% trans "Yes" %}</span>{% else %}<span class="pf-muted">{% trans "No" %}</span>{% endif %}</td>
+              <td>{{ p.max_users_default }}</td>
+              <td>{% if p.sms_monthly_quota %}{{ p.sms_monthly_quota }}{% else %}—{% endif %}</td>
+              <td>{% if p.enforce_sms_quota %}{% trans "Yes" %}{% else %}{% trans "No" %}{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="pf-foot-hint">
+      {% trans "Edit values under" %} <strong>{% trans "Accounts → Subscription plan defaults" %}</strong>.
+    </p>
+  </section>
+  {% endif %}
+
+  <section class="pf-panel" style="margin-top: 1rem; border-style: dashed;" aria-labelledby="more-heading">
+    <h3 id="more-heading" style="margin-bottom:0.35rem;">{% trans "All apps & models" %}</h3>
+    <p class="pf-muted" style="margin:0;">{% trans "Use the registry below for every registered model (same as standard Django admin)." %}</p>
+  </section>
+</div>
+{% endif %}
+</div>
+{{ block.super }}
+{% endblock %}

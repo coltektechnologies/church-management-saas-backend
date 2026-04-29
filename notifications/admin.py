@@ -12,9 +12,17 @@ from accounts.models import Church, User
 from members.models import Member
 from notifications.services.mnotify_service import MNotifyService
 
-from .models import (EmailLog, Notification, NotificationBatch,
-                     NotificationPreference, NotificationTemplate,
-                     RecurringNotificationSchedule, SMSDeliveryReport, SMSLog)
+from .models import (
+    EmailLog,
+    Notification,
+    NotificationBatch,
+    NotificationPreference,
+    NotificationTemplate,
+    RecurringNotificationSchedule,
+    SMSDeliveryReport,
+    SMSLog,
+)
+from .sms_pricing import estimated_cost_display
 
 # =============================================================================
 # In-app notifications
@@ -235,6 +243,7 @@ class SMSLogAdmin(admin.ModelAdmin):
         "church",
         "status",
         "delivery_status",
+        "sms_count",
         "get_gateway_display",
         "created_at",
         "sent_at",
@@ -378,14 +387,18 @@ class SMSLogAdmin(admin.ModelAdmin):
         return qs
 
     def get_cost(self, obj):
-        return f"${obj.cost:.4f}" if obj.cost else "Not available"
+        text, _ = estimated_cost_display(obj)
+        if text == "—":
+            return _("Not available (set SMS_SEGMENT_UNIT_PRICE in settings / .env)")
+        return text
 
-    get_cost.short_description = "Cost (USD)"
+    get_cost.short_description = _("Cost (GHS, stored or estimated)")
 
     def get_cost_display(self, obj):
-        return f"${obj.cost:.4f}" if obj.cost else "-"
+        text, _ = estimated_cost_display(obj)
+        return text
 
-    get_cost_display.short_description = "Cost"
+    get_cost_display.short_description = _("Cost (GHS)")
 
     def get_recipient_name(self, obj):
         if obj.member:
