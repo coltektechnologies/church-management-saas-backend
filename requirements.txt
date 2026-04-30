@@ -57,6 +57,7 @@ twilio>=8.0.0
 # HTTP & utilities
 requests==2.32.3
 dnspython>=2.6.0
+email-validator>=2.2.0
 PyJWT==2.9.0
 cryptography>=41.0.0
 

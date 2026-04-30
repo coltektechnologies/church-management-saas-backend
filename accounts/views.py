@@ -4,11 +4,11 @@ import uuid
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.core.validators import EmailValidator
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from email_validator import EmailNotValidError, validate_email
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -59,33 +59,6 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
-
-_EMAIL_VALIDATOR = EmailValidator()
-
-
-def _email_domain_can_receive_mail(domain: str):
-    """
-    Best-effort DNS: MX preferred; fallback A record.
-    False = domain unlikely to receive mail; None = skip (dnspython missing).
-    """
-    domain = (domain or "").strip().lower().rstrip(".")
-    if not domain:
-        return False
-    try:
-        import dns.resolver
-    except ImportError:
-        return None
-    try:
-        mx = dns.resolver.resolve(domain, "MX")
-        if mx:
-            return True
-    except Exception:
-        pass
-    try:
-        dns.resolver.resolve(domain, "A")
-        return True
-    except Exception:
-        return False
 
 
 def _client_ip(request):
@@ -1971,8 +1944,14 @@ def registration_positions(request):
 @permission_classes([AllowAny])
 def registration_validate_email(request):
     """
-    Pre-flight email check for signup: format, DNS/MX domain (best-effort), and uniqueness
-    in Church (church scope) or User (admin scope). Does not prove the mailbox exists.
+    Pre-flight email check for signup.
+
+    Uses email-validator with ``check_deliverability=True``: RFC syntax plus DNS lookups
+    so the domain can receive mail (MX, or A/AAAA fallback per SMTP rules).
+
+    This rejects malformed addresses, unknown domains, and domains with no mail routing.
+    It does **not** prove a specific mailbox exists (that requires sending a confirmation
+    email or unreliable SMTP probes). Uniqueness is still enforced against Church/User.
     """
     email_raw = (request.data.get("email") or "").strip()
     scope = (request.data.get("scope") or "admin").strip().lower()
@@ -1990,44 +1969,29 @@ def registration_validate_email(request):
         )
 
     try:
-        _EMAIL_VALIDATOR(email_raw)
-    except ValidationError:
-        return Response(
-            {
-                "ok": False,
-                "reason": "invalid_format",
-                "message": "Enter a valid email address",
-            },
-            status=status.HTTP_200_OK,
+        validated = validate_email(
+            email_raw,
+            check_deliverability=True,
+            allow_empty_local=False,
         )
-
-    email = email_raw.lower()
-    parts = email.rsplit("@", 1)
-    if len(parts) != 2 or not parts[1]:
-        return Response(
-            {
-                "ok": False,
-                "reason": "invalid_format",
-                "message": "Enter a valid email address",
-            },
-            status=status.HTTP_200_OK,
+    except EmailNotValidError as exc:
+        detail = str(exc).strip()
+        message = detail or (
+            "That email cannot receive mail: check spelling and use a real provider "
+            "(e.g. Gmail, Outlook, your church domain)."
         )
-    domain = parts[1]
-
-    domain_ok = _email_domain_can_receive_mail(domain)
-    if domain_ok is False:
         return Response(
             {
                 "ok": False,
-                "reason": "bad_domain",
-                "message": (
-                    "That domain does not appear set up for email (no mail servers found). "
-                    "Check for typos in the address."
-                ),
+                "reason": "invalid_deliverability",
+                "message": message,
                 "available": False,
+                "domain_checked": True,
             },
             status=status.HTTP_200_OK,
         )
+
+    email = validated.normalized
 
     if scope == "church":
         taken = Church.objects.filter(email=email).exists()
@@ -2043,7 +2007,7 @@ def registration_validate_email(request):
                 "reason": "taken",
                 "message": msg,
                 "available": False,
-                "domain_checked": domain_ok is not None,
+                "domain_checked": True,
             },
             status=status.HTTP_200_OK,
         )
@@ -2052,7 +2016,7 @@ def registration_validate_email(request):
         {
             "ok": True,
             "available": True,
-            "domain_checked": domain_ok is not None,
+            "domain_checked": True,
             "message": None,
         },
         status=status.HTTP_200_OK,
