@@ -303,9 +303,16 @@ class DepartmentViewSet(viewsets.ModelViewSet):
             deleted_at__isnull=True,
         ).first()
         if not member:
+            # 200 + nulls (not 404): avoids Django dev-server "Not Found:" warnings for a valid route.
             return Response(
-                {"detail": "No church member profile is linked to this account."},
-                status=status.HTTP_404_NOT_FOUND,
+                {
+                    "portal_role": None,
+                    "department": None,
+                    "viewer_member": None,
+                    "reason": "NO_MEMBER_LINK",
+                    "detail": "No church member profile is linked to this account.",
+                },
+                status=status.HTTP_200_OK,
             )
         head_row = (
             DepartmentHead.objects.filter(
@@ -332,12 +339,16 @@ class DepartmentViewSet(viewsets.ModelViewSet):
         if not dept or not portal_role:
             return Response(
                 {
+                    "portal_role": None,
+                    "department": None,
+                    "viewer_member": None,
+                    "reason": "NO_PORTAL_ASSIGNMENT",
                     "detail": (
                         "You are not assigned as department head or elder in charge "
                         "of any department."
-                    )
+                    ),
                 },
-                status=status.HTTP_404_NOT_FOUND,
+                status=status.HTTP_200_OK,
             )
         return Response(
             {
