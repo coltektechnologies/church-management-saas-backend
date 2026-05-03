@@ -1,13 +1,28 @@
 from django.urls import path
 
 from .views import (  # Income Categories; Income Transactions; Expense Categories; Expense Transactions; Expense Requests; Assets; Statistics
-    AssetDetailView, AssetView, ExpenseCategoryDetailView, ExpenseCategoryView,
-    ExpenseRequestDetailView, ExpenseRequestView, ExpenseTransactionDetailView,
-    ExpenseTransactionView, IncomeCategoryDetailView, IncomeCategoryView,
-    IncomeTransactionDetailView, IncomeTransactionView,
-    approve_expense_request_dept_head, approve_expense_request_first_elder,
-    approve_expense_request_treasurer, disburse_expense_request,
-    get_treasury_statistics, reject_expense_request, submit_expense_request)
+    AssetDetailView,
+    AssetView,
+    ExpenseCategoryDetailView,
+    ExpenseCategoryView,
+    ExpenseRequestDetailView,
+    ExpenseRequestView,
+    ExpenseTransactionDetailView,
+    ExpenseTransactionView,
+    IncomeCategoryDetailView,
+    IncomeCategoryView,
+    IncomeTransactionDetailView,
+    IncomeTransactionView,
+    TreasuryChurchPledgesListView,
+    TreasuryMemberPledgeListView,
+    approve_expense_request_dept_head,
+    approve_expense_request_first_elder,
+    approve_expense_request_treasurer,
+    disburse_expense_request,
+    get_treasury_statistics,
+    reject_expense_request,
+    submit_expense_request,
+)
 
 app_name = "treasury"
 
@@ -37,6 +52,16 @@ urlpatterns = [
         "income-transactions/<uuid:pk>/",
         IncomeTransactionDetailView.as_view(),
         name="income-transaction-detail",
+    ),
+    path(
+        "pledges/",
+        TreasuryChurchPledgesListView.as_view(),
+        name="treasury-church-pledges",
+    ),
+    path(
+        "member-pledges/",
+        TreasuryMemberPledgeListView.as_view(),
+        name="treasury-member-pledges",
     ),
     # ==========================================
     # EXPENSE CATEGORY ENDPOINTS

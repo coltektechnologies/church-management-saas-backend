@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.core.validators import MinValueValidator
 from django.db import IntegrityError, models, transaction
+from django.db.models import Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
@@ -92,6 +93,82 @@ def ensure_default_income_categories_for_church(church):
         pass
 
 
+class MemberPledge(models.Model):
+    """Member giving commitment; treasury records payments against it via IncomeTransaction.pledge."""
+
+    STATUS_ACTIVE = "ACTIVE"
+    STATUS_FULFILLED = "FULFILLED"
+    STATUS_CANCELLED = "CANCELLED"
+    STATUS_CHOICES = [
+        (STATUS_ACTIVE, _("Active")),
+        (STATUS_FULFILLED, _("Fulfilled")),
+        (STATUS_CANCELLED, _("Cancelled")),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    church = models.ForeignKey(
+        Church,
+        on_delete=models.CASCADE,
+        related_name="member_pledges",
+        db_column="church_id",
+    )
+    member = models.ForeignKey(
+        Member,
+        on_delete=models.CASCADE,
+        related_name="pledges",
+    )
+    pledge_year = models.PositiveIntegerField(
+        help_text=_("Calendar year this pledge applies to."),
+    )
+    title = models.CharField(max_length=200, blank=True)
+    target_amount = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal("0.01"))],
+    )
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_ACTIVE
+    )
+    notes = models.TextField(blank=True)
+    fulfilled_at = models.DateTimeField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "member_pledges"
+        verbose_name = _("Member pledge")
+        verbose_name_plural = _("Member pledges")
+        ordering = ["-pledge_year", "-created_at"]
+        indexes = [
+            models.Index(fields=["church", "member", "pledge_year"]),
+        ]
+
+    def __str__(self):
+        return f"Pledge {self.pledge_year} — {self.target_amount}"
+
+    def fulfilled_amount(self):
+        total = self.income_payments.filter(deleted_at__isnull=True).aggregate(
+            total=Sum("amount")
+        )["total"]
+        return total if total is not None else Decimal("0.00")
+
+    def sync_status_from_payments(self):
+        """Set fulfilled when sum of linked income reaches target (excluding cancelled)."""
+        if self.status == self.STATUS_CANCELLED:
+            return
+        total = self.fulfilled_amount()
+        if total >= self.target_amount:
+            if self.status != self.STATUS_FULFILLED:
+                self.status = self.STATUS_FULFILLED
+                self.fulfilled_at = timezone.now()
+                self.save(update_fields=["status", "fulfilled_at", "updated_at"])
+        elif self.status == self.STATUS_FULFILLED:
+            self.status = self.STATUS_ACTIVE
+            self.fulfilled_at = None
+            self.save(update_fields=["status", "fulfilled_at", "updated_at"])
+
+
 class IncomeTransaction(models.Model):
     """Income/Revenue transactions"""
 
@@ -163,6 +240,14 @@ class IncomeTransaction(models.Model):
     )
     project_name = models.CharField(max_length=200, blank=True, null=True)
 
+    pledge = models.ForeignKey(
+        MemberPledge,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="income_payments",
+    )
+
     # Recording Details
     recorded_by = models.ForeignKey(
         User, on_delete=models.SET_NULL, null=True, related_name="recorded_income"
@@ -191,6 +276,7 @@ class IncomeTransaction(models.Model):
             models.Index(fields=["category", "transaction_date"]),
             models.Index(fields=["receipt_number"]),
             models.Index(fields=["member"]),
+            models.Index(fields=["pledge"]),
         ]
 
     def __str__(self):

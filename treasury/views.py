@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from accounts.models import Church
 from accounts.models.base_models import AuditLog
 from accounts.permissions import has_permission as has_custom_permission
+from members.models import Member
 
 from .expense_approval_access import (
     can_approve_expense_as_dept_head_or_elder,
@@ -30,6 +31,7 @@ from .models import (
     ExpenseTransaction,
     IncomeCategory,
     IncomeTransaction,
+    MemberPledge,
     ensure_default_income_categories_for_church,
 )
 from .serializers import (
@@ -45,6 +47,8 @@ from .serializers import (
     IncomeCategorySerializer,
     IncomeTransactionDetailSerializer,
     IncomeTransactionListSerializer,
+    MemberPledgeChurchListSerializer,
+    MemberPledgeTreasurySerializer,
     RejectExpenseRequestSerializer,
     TreasuryStatisticsSerializer,
 )
@@ -231,7 +235,7 @@ class IncomeTransactionView(APIView):
 
         transactions = (
             IncomeTransaction.objects.filter(church=church, deleted_at__isnull=True)
-            .select_related("category", "member", "department")
+            .select_related("category", "member", "department", "pledge")
             .prefetch_related("allocations")
         )
 
@@ -280,7 +284,12 @@ class IncomeTransactionDetailView(APIView):
 
     def get_object(self, pk, church):
         return get_object_or_404(
-            IncomeTransaction, pk=pk, church=church, deleted_at__isnull=True
+            IncomeTransaction.objects.select_related(
+                "category", "member", "department", "pledge", "recorded_by"
+            ),
+            pk=pk,
+            church=church,
+            deleted_at__isnull=True,
         )
 
     @swagger_auto_schema(
@@ -330,6 +339,124 @@ class IncomeTransactionDetailView(APIView):
         transaction.save()
 
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class TreasuryMemberPledgeListView(APIView):
+    """Pledges for a member (treasury): active only by default; use `all=1` for full history."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "List pledges for a church member. Requires `member` (UUID). "
+            "Default: ACTIVE only (record income dropdown). Pass `all=1` for all statuses."
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                "member",
+                openapi.IN_QUERY,
+                description="Member UUID",
+                type=openapi.TYPE_STRING,
+                format=openapi.FORMAT_UUID,
+                required=True,
+            ),
+            openapi.Parameter(
+                "all",
+                openapi.IN_QUERY,
+                description="If 1, include fulfilled and cancelled pledges (members-finance detail).",
+                type=openapi.TYPE_STRING,
+                required=False,
+            ),
+        ],
+        responses={200: MemberPledgeTreasurySerializer(many=True)},
+        tags=["Treasury - Income"],
+    )
+    def get(self, request):
+        church = getattr(request, "current_church", None) or request.user.church
+        if not church:
+            return Response(
+                {"error": "Church context required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member_id = request.query_params.get("member")
+        if not member_id:
+            return Response(
+                {"error": "Query parameter `member` (UUID) is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = Member.objects.filter(
+            pk=member_id, church_id=church.pk, deleted_at__isnull=True
+        ).first()
+        if not member:
+            return Response(
+                {"error": "Member not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        qs = MemberPledge.objects.filter(church=church, member=member)
+        show_all = request.query_params.get("all") in ("1", "true", "yes", "all")
+        if not show_all:
+            qs = qs.filter(status=MemberPledge.STATUS_ACTIVE)
+        pledges = qs.order_by("-pledge_year", "-created_at")
+        serializer = MemberPledgeTreasurySerializer(
+            pledges, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+
+class TreasuryChurchPledgesListView(APIView):
+    """All member pledges for the current church (treasury)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "List all pledges for the church. Optional query: `status` (ACTIVE, FULFILLED, "
+            "CANCELLED, or ALL), `pledge_year` (e.g. 2026)."
+        ),
+        manual_parameters=[
+            openapi.Parameter(
+                "status",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                required=False,
+            ),
+            openapi.Parameter(
+                "pledge_year",
+                openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                required=False,
+            ),
+        ],
+        responses={200: MemberPledgeChurchListSerializer(many=True)},
+        tags=["Treasury - Income"],
+    )
+    def get(self, request):
+        church = getattr(request, "current_church", None) or request.user.church
+        if not church:
+            return Response(
+                {"error": "Church context required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        qs = MemberPledge.objects.filter(church=church).select_related("member")
+
+        status_param = (request.query_params.get("status") or "").strip().upper()
+        if status_param and status_param != "ALL":
+            if status_param in (
+                MemberPledge.STATUS_ACTIVE,
+                MemberPledge.STATUS_FULFILLED,
+                MemberPledge.STATUS_CANCELLED,
+            ):
+                qs = qs.filter(status=status_param)
+
+        year_raw = request.query_params.get("pledge_year")
+        if year_raw and str(year_raw).isdigit():
+            qs = qs.filter(pledge_year=int(year_raw))
+
+        qs = qs.order_by("-pledge_year", "-created_at")
+        serializer = MemberPledgeChurchListSerializer(
+            qs, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
 
 
 # ==========================================

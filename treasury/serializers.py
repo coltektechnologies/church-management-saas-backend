@@ -23,7 +23,147 @@ from .models import (
     IncomeAllocation,
     IncomeCategory,
     IncomeTransaction,
+    MemberPledge,
 )
+
+# ==========================================
+# MEMBER PLEDGE SERIALIZERS
+# ==========================================
+
+
+class MemberPledgeSerializer(serializers.ModelSerializer):
+    """Portal + treasury: pledge with computed paid progress."""
+
+    amount_fulfilled = serializers.SerializerMethodField()
+    amount_remaining = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MemberPledge
+        fields = [
+            "id",
+            "pledge_year",
+            "title",
+            "target_amount",
+            "amount_fulfilled",
+            "amount_remaining",
+            "status",
+            "notes",
+            "fulfilled_at",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "status",
+            "amount_fulfilled",
+            "amount_remaining",
+            "fulfilled_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_amount_fulfilled(self, obj):
+        return str(obj.fulfilled_amount())
+
+    def get_amount_remaining(self, obj):
+        rem = obj.target_amount - obj.fulfilled_amount()
+        if rem < Decimal("0"):
+            rem = Decimal("0")
+        return str(rem.quantize(Decimal("0.01")))
+
+    def validate_pledge_year(self, value):
+        from datetime import datetime
+
+        y = datetime.now().year
+        if value < y - 1 or value > y + 5:
+            raise serializers.ValidationError(
+                "Pledge year must be within a reasonable range."
+            )
+        return value
+
+    def validate_target_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero.")
+        return value
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        member = self.context.get("member")
+        church = self.context.get("church")
+        if member is None or church is None:
+            raise serializers.ValidationError("Member context required")
+        return MemberPledge.objects.create(
+            church=church,
+            member=member,
+            **validated_data,
+        )
+
+
+class MemberPledgeTreasurySerializer(serializers.ModelSerializer):
+    """Compact row for treasury dropdown when recording income."""
+
+    amount_fulfilled = serializers.SerializerMethodField()
+    label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MemberPledge
+        fields = [
+            "id",
+            "pledge_year",
+            "title",
+            "target_amount",
+            "amount_fulfilled",
+            "status",
+            "label",
+        ]
+
+    def get_amount_fulfilled(self, obj):
+        return str(obj.fulfilled_amount())
+
+    def get_label(self, obj):
+        title = (obj.title or "Giving pledge").strip()
+        return f"{title} ({obj.pledge_year}) — {obj.target_amount} GHS"
+
+
+class MemberPledgeChurchListSerializer(serializers.ModelSerializer):
+    """All pledges for a church (treasury overview)."""
+
+    amount_fulfilled = serializers.SerializerMethodField()
+    amount_remaining = serializers.SerializerMethodField()
+    member_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MemberPledge
+        fields = [
+            "id",
+            "member_id",
+            "member_name",
+            "pledge_year",
+            "title",
+            "target_amount",
+            "amount_fulfilled",
+            "amount_remaining",
+            "status",
+            "notes",
+            "fulfilled_at",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_amount_fulfilled(self, obj):
+        return str(obj.fulfilled_amount())
+
+    def get_amount_remaining(self, obj):
+        rem = obj.target_amount - obj.fulfilled_amount()
+        if rem < Decimal("0"):
+            rem = Decimal("0")
+        return str(rem.quantize(Decimal("0.01")))
+
+    def get_member_name(self, obj):
+        m = obj.member
+        if not m:
+            return ""
+        return m.get_full_name() or ""
 
 
 def expense_review_permissions(request, obj):
@@ -157,6 +297,12 @@ class IncomeTransactionDetailSerializer(serializers.ModelSerializer):
         source="get_service_type_display", read_only=True
     )
     allocations = serializers.SerializerMethodField()
+    pledge = serializers.PrimaryKeyRelatedField(
+        queryset=MemberPledge.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    pledge_detail = serializers.SerializerMethodField()
 
     class Meta:
         model = IncomeTransaction
@@ -182,6 +328,8 @@ class IncomeTransactionDetailSerializer(serializers.ModelSerializer):
             "department",
             "department_details",
             "project_name",
+            "pledge",
+            "pledge_detail",
             "allocations",
             "recorded_by",
             "recorded_by_name",
@@ -208,6 +356,19 @@ class IncomeTransactionDetailSerializer(serializers.ModelSerializer):
             obj.allocations.all().order_by("destination"), many=True
         ).data
 
+    def get_pledge_detail(self, obj):
+        if not obj.pledge_id:
+            return None
+        p = obj.pledge
+        return {
+            "id": str(p.id),
+            "pledge_year": p.pledge_year,
+            "title": p.title,
+            "target_amount": str(p.target_amount),
+            "amount_fulfilled": str(p.fulfilled_amount()),
+            "status": p.status,
+        }
+
     def validate(self, attrs):
         """Validate payment method specific fields"""
         payment_method = attrs.get("payment_method")
@@ -223,6 +384,40 @@ class IncomeTransactionDetailSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"transaction_reference": "Transaction reference is required"}
             )
+
+        if "pledge" in attrs:
+            pledge = attrs["pledge"]
+        elif self.instance:
+            pledge = self.instance.pledge
+        else:
+            pledge = None
+
+        if "member" in attrs:
+            member = attrs["member"]
+        elif self.instance:
+            member = self.instance.member
+        else:
+            member = None
+
+        if pledge:
+            if not member:
+                raise serializers.ValidationError(
+                    {"pledge": "Select a member before linking a pledge."}
+                )
+            if pledge.member_id != member.pk:
+                raise serializers.ValidationError(
+                    {"pledge": "This pledge does not match the selected member."}
+                )
+            request = self.context.get("request")
+            church = None
+            if request:
+                church = getattr(request, "current_church", None) or getattr(
+                    getattr(request, "user", None), "church", None
+                )
+            if church and pledge.church_id != church.pk:
+                raise serializers.ValidationError(
+                    {"pledge": "Pledge is not in your church."}
+                )
 
         return attrs
 
