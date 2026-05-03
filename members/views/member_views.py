@@ -1,7 +1,9 @@
 import logging
 import threading
+from datetime import date
+from decimal import Decimal
 
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Sum
 from django.utils import timezone
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -14,8 +16,14 @@ from accounts.notification_utils import church_can_use_sms_email
 from departments.models import MemberDepartment
 from members.member_serializers import MemberCreateSerializer
 from members.models import Member, MemberLocation
-from members.serializers import MemberLocationSerializer, MemberSerializer
+from members.serializers import (
+    MemberLocationSerializer,
+    MemberSelfServiceUpdateSerializer,
+    MemberSerializer,
+)
 from members.tasks import run_member_credentials_delivery
+from treasury.models import IncomeTransaction, MemberPledge
+from treasury.serializers import MemberPledgeSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -344,6 +352,360 @@ class MemberView(APIView):
     def post(self, request, format=None):
         """Create a new member (same as POST /api/members/create/)."""
         return MemberCreateView().post(request, format)
+
+
+def _current_member_queryset(request):
+    """Queryset for the member row linked to `request.user` (portal account)."""
+    church_id = getattr(request.user, "church_id", None)
+    if not church_id:
+        return None
+    uid = request.user.id
+    dept_links = MemberDepartment.objects.filter(
+        deleted_at__isnull=True
+    ).select_related("department")
+    return (
+        Member.objects.filter(
+            deleted_at__isnull=True,
+            church_id=church_id,
+            system_user_id=uid,
+        )
+        .select_related("location")
+        .prefetch_related(
+            Prefetch("memberdepartment_set", queryset=dept_links),
+        )
+    )
+
+
+class CurrentMemberProfileAPIView(APIView):
+    """
+    Return or update the church member row linked to the authenticated portal user
+    (`Member.system_user_id` == `request.user.id`).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Get the member profile for the currently authenticated user "
+            "(member portal accounts linked via system_user_id)."
+        ),
+        responses={
+            200: MemberSerializer(),
+            404: "No member profile linked to this account",
+            401: "Unauthorized",
+        },
+        tags=["Members"],
+    )
+    def get(self, request):
+        qs = _current_member_queryset(request)
+        if qs is None:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = qs.first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = MemberSerializer(member, context={"request": request})
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Update allowed fields on the linked member profile (self-service). "
+            "Nested `location` updates contact & address. `profile_photo` accepts a URL or "
+            "a data URL string."
+        ),
+        request_body=MemberSelfServiceUpdateSerializer,
+        responses={
+            200: MemberSerializer(),
+            400: "Validation error",
+            404: "No member profile linked to this account",
+            401: "Unauthorized",
+        },
+        tags=["Members"],
+    )
+    def patch(self, request):
+        qs = _current_member_queryset(request)
+        if qs is None:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = qs.first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = MemberSelfServiceUpdateSerializer(
+            member, data=request.data, partial=True, context={"request": request}
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        serializer.save()
+        fresh = qs.filter(pk=member.pk).first()
+        out = MemberSerializer(fresh, context={"request": request})
+        return Response(out.data)
+
+
+class MemberMyGivingSummaryAPIView(APIView):
+    """
+    YTD total and recent income rows for the member linked to the current user.
+    Only transactions with `member` set to that member are included.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Giving summary for the portal member: calendar YTD total of "
+            "`IncomeTransaction` rows tied to their member record, plus recent items."
+        ),
+        responses={
+            200: openapi.Response(
+                "Giving summary",
+                schema=openapi.Schema(
+                    type=openapi.TYPE_OBJECT,
+                    properties={
+                        "ytd_total": openapi.Schema(type=openapi.TYPE_STRING),
+                        "recent": openapi.Schema(
+                            type=openapi.TYPE_ARRAY,
+                            items=openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    "id": openapi.Schema(type=openapi.TYPE_STRING),
+                                    "transaction_date": openapi.Schema(
+                                        type=openapi.TYPE_STRING,
+                                        format=openapi.FORMAT_DATE,
+                                    ),
+                                    "category_name": openapi.Schema(
+                                        type=openapi.TYPE_STRING
+                                    ),
+                                    "amount": openapi.Schema(type=openapi.TYPE_STRING),
+                                },
+                            ),
+                        ),
+                    },
+                ),
+            ),
+            404: "No member profile linked to this account",
+            401: "Unauthorized",
+        },
+        tags=["Members"],
+    )
+    def get(self, request):
+        church_id = getattr(request.user, "church_id", None)
+        if not church_id:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        uid = request.user.id
+        member = Member.objects.filter(
+            deleted_at__isnull=True,
+            church_id=church_id,
+            system_user_id=uid,
+        ).first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        base_qs = IncomeTransaction.objects.filter(
+            church_id=church_id,
+            member=member,
+            deleted_at__isnull=True,
+        ).select_related("category")
+
+        today = timezone.now().date()
+        year_start = date(today.year, 1, 1)
+        ytd_qs = base_qs.filter(transaction_date__gte=year_start)
+        agg = ytd_qs.aggregate(total=Sum("amount"))
+        total = agg["total"] if agg["total"] is not None else Decimal("0.00")
+
+        ytd_tithe = Decimal("0.00")
+        ytd_offering = Decimal("0.00")
+        ytd_other = Decimal("0.00")
+        for row in ytd_qs.values(
+            "category_id", "category__name", "category__code"
+        ).annotate(cat_total=Sum("amount")):
+            part = row["cat_total"] if row["cat_total"] is not None else Decimal("0.00")
+            name = (row["category__name"] or "").lower()
+            code = (row["category__code"] or "").upper()
+            if "tithe" in name or code == "TITHE":
+                ytd_tithe += part
+            elif "offer" in name or code == "OFFERING":
+                ytd_offering += part
+            else:
+                ytd_other += part
+
+        recent_qs = base_qs.order_by("-transaction_date", "-created_at")[:8]
+        recent = [
+            {
+                "id": str(t.id),
+                "transaction_date": t.transaction_date.isoformat(),
+                "category_name": t.category.name if t.category_id else "",
+                "amount": str(t.amount),
+            }
+            for t in recent_qs
+        ]
+
+        history_qs = base_qs.order_by("-transaction_date", "-created_at")[:250]
+        history = []
+        for t in history_qs:
+            history.append(
+                {
+                    "id": str(t.id),
+                    "receipt_number": t.receipt_number,
+                    "transaction_date": t.transaction_date.isoformat(),
+                    "category_name": t.category.name if t.category_id else "",
+                    "amount": str(t.amount),
+                    "payment_method": t.get_payment_method_display(),
+                }
+            )
+
+        return Response(
+            {
+                "ytd_total": str(total),
+                "ytd_tithe": str(ytd_tithe),
+                "ytd_offering": str(ytd_offering),
+                "ytd_other": str(ytd_other),
+                "recent": recent,
+                "history": history,
+            }
+        )
+
+
+class MemberMyPledgesAPIView(APIView):
+    """List or create pledges for the portal member linked to the current user."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="List pledges for the authenticated member.",
+        responses={200: MemberPledgeSerializer(many=True)},
+        tags=["Members"],
+    )
+    def get(self, request):
+        qs = _current_member_queryset(request)
+        if qs is None:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = qs.first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        pledges = MemberPledge.objects.filter(
+            member=member, church_id=member.church_id
+        ).order_by("-pledge_year", "-created_at")
+        serializer = MemberPledgeSerializer(
+            pledges, many=True, context={"request": request}
+        )
+        return Response(serializer.data)
+
+    @swagger_auto_schema(
+        operation_description=(
+            "Create a pledge (calendar year + target amount). Progress updates when "
+            "treasury records income linked to this pledge."
+        ),
+        request_body=MemberPledgeSerializer,
+        responses={201: MemberPledgeSerializer()},
+        tags=["Members"],
+    )
+    def post(self, request):
+        qs = _current_member_queryset(request)
+        if qs is None:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = qs.first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = MemberPledgeSerializer(
+            data=request.data,
+            context={
+                "request": request,
+                "member": member,
+                "church": member.church,
+            },
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class MemberMyPledgeDetailAPIView(APIView):
+    """Cancel a pledge (member-only)."""
+
+    permission_classes = [IsAuthenticated]
+
+    @swagger_auto_schema(
+        operation_description="Cancel your pledge (PATCH with status CANCELLED only).",
+        request_body=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                "status": openapi.Schema(type=openapi.TYPE_STRING, enum=["CANCELLED"]),
+            },
+            required=["status"],
+        ),
+        responses={200: MemberPledgeSerializer()},
+        tags=["Members"],
+    )
+    def patch(self, request, pk):
+        qs = _current_member_queryset(request)
+        if qs is None:
+            return Response(
+                {"detail": "No church context for this account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        member = qs.first()
+        if not member:
+            return Response(
+                {"detail": "No member profile linked to this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        pledge = MemberPledge.objects.filter(
+            pk=pk, member=member, church_id=member.church_id
+        ).first()
+        if not pledge:
+            return Response(
+                {"detail": "Pledge not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if pledge.status == MemberPledge.STATUS_CANCELLED:
+            return Response(
+                {"detail": "Pledge is already cancelled."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pledge.status == MemberPledge.STATUS_FULFILLED:
+            return Response(
+                {"detail": "Cannot cancel a fulfilled pledge."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        st = request.data.get("status")
+        if st != MemberPledge.STATUS_CANCELLED:
+            return Response(
+                {"detail": "You can only cancel a pledge (set status to CANCELLED)."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pledge.status = MemberPledge.STATUS_CANCELLED
+        pledge.fulfilled_at = None
+        pledge.save(update_fields=["status", "fulfilled_at", "updated_at"])
+        out = MemberPledgeSerializer(pledge, context={"request": request})
+        return Response(out.data)
 
 
 class MemberDetailAPIView(APIView):

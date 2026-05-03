@@ -67,6 +67,7 @@ class MemberSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
+        data["full_name"] = instance.full_name
         data["department_names"] = self._department_names_list(instance)
         return data
 
@@ -117,6 +118,111 @@ class MemberSerializer(serializers.ModelSerializer):
                 defaults={"church": instance.church},
             )
 
+            for attr, value in location_data.items():
+                setattr(location, attr, value)
+            location.save()
+
+        return instance
+
+
+class MemberLocationSelfServiceSerializer(serializers.ModelSerializer):
+    """Contact/address fields members may update on their own profile."""
+
+    class Meta:
+        model = MemberLocation
+        fields = [
+            "phone_primary",
+            "phone_secondary",
+            "email",
+            "address",
+            "city",
+            "region",
+            "country",
+        ]
+        extra_kwargs = {
+            "phone_primary": {"required": False, "allow_blank": True},
+            "phone_secondary": {"required": False, "allow_blank": True},
+            "email": {"required": False, "allow_blank": True},
+            "address": {"required": False, "allow_blank": True},
+            "city": {"required": False, "allow_blank": True},
+            "region": {"required": False, "allow_blank": True},
+            "country": {"required": False, "allow_blank": True},
+        }
+
+
+class MemberSelfServiceUpdateSerializer(serializers.ModelSerializer):
+    """
+    Allowed member portal self-service fields only (no church, roles, membership_status, etc.).
+    """
+
+    location = MemberLocationSelfServiceSerializer(required=False)
+
+    class Meta:
+        model = Member
+        fields = [
+            "title",
+            "first_name",
+            "middle_name",
+            "last_name",
+            "gender",
+            "date_of_birth",
+            "marital_status",
+            "national_id",
+            "notification_preference",
+            "education_level",
+            "occupation",
+            "employer",
+            "baptism_status",
+            "emergency_contact_name",
+            "emergency_contact_phone",
+            "emergency_contact_relationship",
+            "location",
+            "profile_photo",
+        ]
+        extra_kwargs = {
+            "title": {"required": False, "allow_blank": True},
+            "first_name": {"required": False},
+            "last_name": {"required": False},
+            "middle_name": {"required": False, "allow_blank": True},
+            "gender": {"required": False},
+            "date_of_birth": {"required": False, "allow_null": True},
+            "marital_status": {"required": False, "allow_null": True},
+            "national_id": {"required": False, "allow_blank": True},
+            "notification_preference": {"required": False},
+            "education_level": {"required": False, "allow_null": True},
+            "occupation": {"required": False, "allow_blank": True},
+            "employer": {"required": False, "allow_blank": True},
+            "baptism_status": {"required": False, "allow_null": True},
+            "emergency_contact_name": {"required": False, "allow_blank": True},
+            "emergency_contact_phone": {"required": False, "allow_blank": True},
+            "emergency_contact_relationship": {"required": False, "allow_blank": True},
+            "profile_photo": {"required": False, "allow_blank": True},
+        }
+
+    def validate_profile_photo(self, value):
+        if value in (None, ""):
+            return value
+        if len(value) > 2_500_000:
+            raise serializers.ValidationError(
+                "Photo is too large. Please choose a smaller image (under about 2 MB)."
+            )
+        return value
+
+    def update(self, instance, validated_data):
+        location_data = validated_data.pop("location", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if location_data:
+            location, _ = MemberLocation.objects.get_or_create(
+                member=instance,
+                defaults={
+                    "church": instance.church,
+                    "phone_primary": location_data.get("phone_primary") or "-",
+                    "address": location_data.get("address") or "-",
+                },
+            )
             for attr, value in location_data.items():
                 setattr(location, attr, value)
             location.save()

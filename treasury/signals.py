@@ -9,11 +9,16 @@ Treasury signals: auto-create income allocations (Church vs Conference).
 
 from decimal import Decimal
 
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 
 from .income_notifications import notify_member_income_recorded
-from .models import HARVEST_ALLOCATION_CODES, IncomeAllocation, IncomeTransaction
+from .models import (
+    HARVEST_ALLOCATION_CODES,
+    IncomeAllocation,
+    IncomeTransaction,
+    MemberPledge,
+)
 
 # Category codes (uppercase) — must match IncomeCategory.code
 _OFFERING_5050_CODES = frozenset({"GENERAL_OFFERING", "LOOSE_OFFERING"})
@@ -77,6 +82,36 @@ def create_income_allocations(instance):
         )
 
 
+@receiver(pre_save, sender=IncomeTransaction)
+def income_transaction_cache_old_pledge(sender, instance, **kwargs):
+    """Remember prior pledge so we can refresh both old and new pledge totals."""
+    if not instance.pk:
+        instance._old_pledge_id = None
+        return
+    try:
+        prev = IncomeTransaction.objects.only("pledge_id").get(pk=instance.pk)
+        instance._old_pledge_id = prev.pledge_id
+    except IncomeTransaction.DoesNotExist:
+        instance._old_pledge_id = None
+
+
+def _refresh_pledges_after_income(instance):
+    ids = []
+    old = getattr(instance, "_old_pledge_id", None)
+    if old:
+        ids.append(old)
+    if instance.pledge_id:
+        ids.append(instance.pledge_id)
+    for pid in set(ids):
+        if not pid:
+            continue
+        try:
+            pledge = MemberPledge.objects.get(pk=pid)
+            pledge.sync_status_from_payments()
+        except MemberPledge.DoesNotExist:
+            pass
+
+
 @receiver(post_save, sender=IncomeTransaction)
 def on_income_transaction_saved(sender, instance, created, raw, **kwargs):
     """Create allocations when income transaction is saved."""
@@ -84,3 +119,4 @@ def on_income_transaction_saved(sender, instance, created, raw, **kwargs):
         return
     create_income_allocations(instance)
     notify_member_income_recorded(instance, created=created)
+    _refresh_pledges_after_income(instance)
