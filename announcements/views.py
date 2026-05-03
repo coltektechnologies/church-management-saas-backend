@@ -161,6 +161,29 @@ class AnnouncementViewSet(viewsets.ModelViewSet):
         else:
             return qs.none()
 
+        # Admin /secretariat hub: approval pipeline + anything authored by secretariat creators
+        secretariat_feed = (
+            self.request.query_params.get("secretariat_feed") or ""
+        ).lower()
+        if secretariat_feed in ("1", "true", "yes"):
+            from accounts.models import UserRole
+
+            secretary_ids = (
+                UserRole.objects.filter(
+                    church=self.request.user.church,
+                    is_active=True,
+                    role__rolepermission_set__permission__code=(
+                        "secretariat.create_announcement"
+                    ),
+                )
+                .values_list("user_id", flat=True)
+                .distinct()
+            )
+            qs = qs.filter(
+                Q(status__in=["PENDING_REVIEW", "APPROVED", "PUBLISHED"])
+                | Q(created_by_id__in=secretary_ids)
+            )
+
         # Filter by status
         status_param = self.request.query_params.get("status", None)
         if status_param:

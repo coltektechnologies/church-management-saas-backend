@@ -1206,6 +1206,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
             "address",
             "is_active",
             "profile_image",
+            "mfa_enabled",
         ]
         read_only_fields = ["email"]  # Email updates should be handled separately
 
