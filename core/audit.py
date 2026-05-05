@@ -16,6 +16,29 @@ class AuditLogger:
     """Helper class for creating audit log entries"""
 
     @staticmethod
+    def _instance_display_label(instance):
+        """
+        Prefer a human-readable label (name, title, full name, email) over raw UUIDs in descriptions.
+        """
+        if instance is None:
+            return None
+        for attr in ("name", "title"):
+            value = getattr(instance, attr, None)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        full_name = getattr(instance, "full_name", None)
+        if full_name is not None and str(full_name).strip():
+            return str(full_name).strip()
+        if hasattr(instance, "get_full_name"):
+            gn = instance.get_full_name()
+            if gn and str(gn).strip():
+                return str(gn).strip()
+        email = getattr(instance, "email", None)
+        if email and str(email).strip():
+            return str(email).strip()
+        return None
+
+    @staticmethod
     def _delete_context_church_id(instance):
         """Tenant id for DELETE audit rows (stored in metadata; never use church FK on delete)."""
         if instance is None:
@@ -85,19 +108,21 @@ class AuditLogger:
         # Get model name and ID
         model_name = instance._meta.model.__name__
         object_id = str(instance.pk)
+        label = AuditLogger._instance_display_label(instance)
+        label_clause = label if label else f"ID: {object_id}"
 
         # Create description based on action (allow override from kwargs)
         if kwargs.get("description"):
             description = kwargs.pop("description")
         elif action == "CREATE":
-            description = f"Created {model_name} (ID: {object_id})"
+            description = f"Created {model_name} ({label_clause})"
         elif action == "UPDATE" and changes:
             changed_fields = ", ".join(changes.keys())
-            description = f"Updated {model_name} (ID: {object_id}): {changed_fields}"
+            description = f"Updated {model_name} ({label_clause}): {changed_fields}"
         elif action == "DELETE":
-            description = f"Deleted {model_name} (ID: {object_id})"
+            description = f"Deleted {model_name} ({label_clause})"
         else:
-            description = f"{action} on {model_name} (ID: {object_id})"
+            description = f"{action} on {model_name} ({label_clause})"
 
         # Create the audit log entry
         log_entry = AuditLog.objects.create(

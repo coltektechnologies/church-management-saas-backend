@@ -14,7 +14,12 @@ from django.utils import timezone
 
 from accounts.models import Church
 from announcements.models import Announcement
-from departments.models import Department, MemberDepartment, Program
+from departments.models import (
+    Department,
+    DepartmentExpenseAllocation,
+    MemberDepartment,
+    Program,
+)
 from members.models import Member
 from treasury.models import Asset, ExpenseRequest, ExpenseTransaction, IncomeTransaction
 
@@ -677,26 +682,39 @@ class DashboardService:
         )
 
     # ---------- Analytics: Department budgets (for treasury dashboard) ----------
-    def department_budgets(self) -> dict:
+    def department_budgets(self, fiscal_year: Optional[int] = None) -> dict:
         """
         Per-department budget allocated vs utilized for treasury dashboard.
-        allocated = sum of Program.total_expenses (expense budget) per department.
+        allocated = admin top-down envelope for fiscal_year when set; otherwise
+        sum of Program.total_expenses (bottom-up). Programs are never modified here.
         utilized = sum of ExpenseTransaction amounts per department.
         """
         from treasury.models import ExpenseTransaction
+
+        if fiscal_year is None:
+            fiscal_year = date.today().year
 
         def _build():
             depts = Department.objects.filter(
                 church=self.church, deleted_at__isnull=True, is_active=True
             ).order_by("name")
 
+            alloc_map = {
+                str(row["department_id"]): row["expense_budget"]
+                for row in DepartmentExpenseAllocation.objects.filter(
+                    church=self.church, fiscal_year=fiscal_year
+                ).values("department_id", "expense_budget")
+            }
+
             result = []
             for d in depts:
-                # Allocated: program expense budgets
-                allocated = Program.objects.filter(department=d).aggregate(
+                from_programs = Program.objects.filter(department=d).aggregate(
                     s=Sum("total_expenses")
                 )["s"] or Decimal("0")
-                # Utilized: actual expense transactions for this department
+                admin_override = alloc_map.get(str(d.id))
+                allocated = (
+                    admin_override if admin_override is not None else from_programs
+                )
                 utilized = ExpenseTransaction.objects.filter(
                     department=d, church=self.church, deleted_at__isnull=True
                 ).aggregate(s=Sum("amount"))["s"] or Decimal("0")
@@ -710,10 +728,11 @@ class DashboardService:
                 )
             return {
                 "departments": result,
+                "fiscal_year": fiscal_year,
                 "generated_at": timezone.now().isoformat(),
             }
 
-        return self._get_cached("department_budgets", _build)
+        return self._get_cached("department_budgets", _build, fiscal_year=fiscal_year)
 
     # ---------- Analytics: Departments performance ----------
     def departments_performance(self) -> dict:

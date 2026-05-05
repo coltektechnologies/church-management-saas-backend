@@ -448,6 +448,56 @@ class Program(models.Model):
         return (self.end_date - self.start_date).days + 1
 
 
+class DepartmentExpenseAllocation(models.Model):
+    """
+    Admin-defined expense budget per department and fiscal year (top-down).
+    Does not modify Program rows or bottom-up budget workflows.
+    When set, analytics/treasury dashboards use this value as allocated instead
+    of rolling up Program.total_expenses for that department/year.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    church = models.ForeignKey(
+        Church,
+        on_delete=models.CASCADE,
+        related_name="department_expense_allocations",
+        db_column="church_id",
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name="expense_allocations",
+        db_column="department_id",
+    )
+    fiscal_year = models.PositiveIntegerField(
+        help_text="Calendar or fiscal year label (e.g. 2026)."
+    )
+    expense_budget = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        help_text="Admin-approved expense envelope for this department.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "department_expense_allocations"
+        verbose_name = _("Department expense allocation")
+        verbose_name_plural = _("Department expense allocations")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("church", "department", "fiscal_year"),
+                name="uniq_expense_alloc_church_dept_year",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["church", "fiscal_year"]),
+        ]
+
+    def __str__(self):
+        return f"{self.department.name} {self.fiscal_year}: {self.expense_budget}"
+
+
 class DepartmentActivity(models.Model):
     """Department Activity - Phase 1B"""
 

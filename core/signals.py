@@ -13,6 +13,18 @@ from core.audit import register_audit_signals
 User = get_user_model()
 
 
+def _audit_user_label(user_instance):
+    """Prefer full name over email in user-facing audit descriptions."""
+    name = getattr(user_instance, "full_name", None)
+    if name is not None and str(name).strip():
+        return str(name).strip()
+    if hasattr(user_instance, "get_full_name"):
+        gn = user_instance.get_full_name()
+        if gn and str(gn).strip():
+            return str(gn).strip()
+    return user_instance.email
+
+
 def register_audit_handlers():
     """Register audit handlers for all models that need tracking"""
     from django.apps import apps
@@ -49,10 +61,10 @@ def log_user_activity(sender, instance, created, **kwargs):
 
     if created:
         action = "CREATE"
-        description = f"User account created: {instance.email}"
+        description = f"User account created: {_audit_user_label(instance)}"
     else:
         action = "UPDATE"
-        description = f"User account updated: {instance.email}"
+        description = f"User account updated: {_audit_user_label(instance)}"
 
     # Get the requesting user if available
     user = request.user if request and hasattr(request, "user") else None
@@ -86,7 +98,7 @@ def log_user_deletion(sender, instance, **kwargs):
         action="DELETE",
         instance=instance,
         request=request,
-        description=f"User account deleted: {instance.email}",
+        description=f"User account deleted: {_audit_user_label(instance)}",
     )
 
 

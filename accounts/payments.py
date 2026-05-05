@@ -165,6 +165,16 @@ def initialize_payment(request):
 
         reference = f"CHURCH_{church.id}_{int(time.time())}"
 
+        frontend_url = getattr(
+            settings,
+            "FRONTEND_URL",
+            "http://localhost:3000",
+        ).rstrip("/")
+        redirect_path = (request.data.get("redirect_path") or "").strip()
+        paystack_callback = None
+        if redirect_path.startswith("/"):
+            paystack_callback = f"{frontend_url}{redirect_path}"
+
         # Create PENDING Payment record for tracking
         payment = Payment.objects.create(
             church=church,
@@ -184,7 +194,11 @@ def initialize_payment(request):
         )
 
         response = PaystackAPI().initialize_transaction(
-            email=email, amount=float(amount), reference=reference, metadata=metadata
+            email=email,
+            amount=float(amount),
+            reference=reference,
+            metadata=metadata,
+            callback_url=paystack_callback,
         )
 
         if response.get("status"):

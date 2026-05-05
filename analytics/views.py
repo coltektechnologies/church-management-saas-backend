@@ -353,7 +353,11 @@ class AnalyticsDepartmentBudgetsView(APIView):
     permission_classes = [IsAuthenticated]
 
     @swagger_auto_schema(
-        operation_description="Department budgets: allocated (program expense budgets) vs utilized (expense transactions) per department.",
+        operation_description=(
+            "Department budgets: allocated vs utilized per department. "
+            "allocated uses admin top-down envelope for the fiscal year when set; "
+            "otherwise sum of program expense budgets. Query: fiscal_year (default: current year)."
+        ),
         tags=["Analytics"],
     )
     def get(self, request):
@@ -362,5 +366,12 @@ class AnalyticsDepartmentBudgetsView(APIView):
             return Response(
                 {"error": "Church context required"}, status=status.HTTP_400_BAD_REQUEST
             )
-        data = DashboardService(church).department_budgets()
+        fy_raw = request.query_params.get("fiscal_year")
+        fiscal_year = None
+        if fy_raw not in (None, ""):
+            try:
+                fiscal_year = int(fy_raw)
+            except (ValueError, TypeError):
+                fiscal_year = None
+        data = DashboardService(church).department_budgets(fiscal_year=fiscal_year)
         return Response(data)

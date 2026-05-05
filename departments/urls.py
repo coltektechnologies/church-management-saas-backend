@@ -7,6 +7,7 @@ from .api_views import DepartmentsByChurchListView
 # Import views directly from their modules to avoid circular imports
 from .views.activity_views import DepartmentActivityViewSet
 from .views.department_views import DepartmentViewSet, MemberDepartmentViewSet
+from .views.expense_allocation_views import DepartmentExpenseAllocationView
 from .views.program_step_views import DepartmentListForProgramAPIView
 from .views.program_views import ProgramBudgetItemViewSet, ProgramViewSet
 
@@ -45,6 +46,11 @@ urlpatterns = [
         "departments/for-program/",
         DepartmentListForProgramAPIView.as_view(),
         name="departments-for-program",
+    ),
+    path(
+        "departments/expense-allocations/",
+        DepartmentExpenseAllocationView.as_view(),
+        name="department-expense-allocations",
     ),
     # Include nested routers BEFORE main router so departments/{id}/programs/ matches
     # ProgramViewSet (GET+POST) instead of DepartmentViewSet.programs (GET only)

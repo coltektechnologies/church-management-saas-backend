@@ -43,15 +43,18 @@ class PaystackAPI:
         return self.get_public_key()
 
     @classmethod
-    def initialize_transaction(cls, email, amount, reference, metadata=None):
+    def initialize_transaction(
+        cls, email, amount, reference, metadata=None, callback_url=None
+    ):
         """
         Initialize payment transaction
 
         Args:
             email: Customer email
-            amount: Amount in cents/kobo (e.g., 1400 for $14)
+            amount: Amount in major currency units (GHS); multiplied by 100 for Paystack.
             reference: Unique payment reference
             metadata: Additional data (optional)
+            callback_url: Full URL for Paystack redirect after payment (optional).
 
         Returns:
             dict: Response from Paystack
@@ -70,12 +73,13 @@ class PaystackAPI:
             "https://opendoor-xi.vercel.app",
         ).rstrip("/")
 
+        default_callback = f"{frontend_url}/signup/success?reference={reference}"
         payload = {
             "email": email,
             "amount": int(amount * 100),  # Convert to pesewas (cents)
             "reference": reference,
             "currency": "GHS",  # Ghana Cedis
-            "callback_url": f"{frontend_url}/signup/success?reference={reference}",
+            "callback_url": callback_url or default_callback,
         }
 
         if metadata:
