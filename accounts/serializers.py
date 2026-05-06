@@ -1636,18 +1636,31 @@ class PasswordResetRequestSerializer(serializers.Serializer):
     """Request password reset"""
 
     email = serializers.EmailField()
-    subdomain = serializers.CharField()
+    subdomain = serializers.CharField(required=False, allow_blank=True)
 
     def validate(self, attrs):
         """Validate user exists"""
         email = attrs.get("email").lower()
-        subdomain = attrs.get("subdomain").lower()
+        subdomain = (attrs.get("subdomain") or "").lower().strip()
 
         try:
-            church = Church.objects.get(subdomain=subdomain)
-            user = User.objects.get(email=email, church=church, is_active=True)
-            attrs["user"] = user
-            attrs["church"] = church
+            if subdomain:
+                church = Church.objects.get(subdomain=subdomain)
+                user = User.objects.get(email=email, church=church, is_active=True)
+                attrs["user"] = user
+                attrs["church"] = church
+            else:
+                # Fallback for portals that do not capture subdomain (e.g. localhost).
+                # If multiple users share the same email across churches, pick the most recent.
+                user = (
+                    User.objects.filter(email=email, is_active=True)
+                    .select_related("church")
+                    .order_by("-created_at")
+                    .first()
+                )
+                if user:
+                    attrs["user"] = user
+                    attrs["church"] = getattr(user, "church", None)
         except (Church.DoesNotExist, User.DoesNotExist):
             # Don't reveal if user exists or not for security
             pass

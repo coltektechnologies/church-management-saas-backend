@@ -1,9 +1,12 @@
 import logging
+import secrets
 import time
 import uuid
 
+from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.core.mail import send_mail
 from django.db.models import Prefetch, Q
 from django.utils import timezone
 from drf_yasg import openapi
@@ -46,6 +49,8 @@ from .serializers import (
     ChurchSerializer,
     LoginSerializer,
     LogoutSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
     PermissionSerializer,
     RegisterSerializer,
     RolePermissionSerializer,
@@ -66,6 +71,102 @@ def _client_ip(request):
     if forwarded:
         return forwarded.split(",")[0].strip() or None
     return request.META.get("REMOTE_ADDR") or None
+
+
+def _password_reset_link(token: str) -> str:
+    base = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
+    return f"{base}/login/resetpassword?token={token}"
+
+
+class PasswordResetRequestAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Security: do not reveal whether the user exists.
+        user = serializer.validated_data.get("user")
+        church = serializer.validated_data.get("church")
+
+        if user:
+            token = secrets.token_urlsafe(32)
+            user.password_reset_token = token
+            user.password_reset_expires = timezone.now() + timezone.timedelta(hours=2)
+            user.save(update_fields=["password_reset_token", "password_reset_expires"])
+
+            link = _password_reset_link(token)
+            church_name = getattr(church, "name", None) or "The Open Door"
+            subject = f"Reset your {church_name} password"
+            message = (
+                f"Hello,\n\n"
+                f"We received a request to reset your password. Use the link below to set a new password:\n\n"
+                f"{link}\n\n"
+                f"If you didn’t request this, you can ignore this email.\n"
+            )
+
+            try:
+                send_mail(
+                    subject=subject,
+                    message=message,
+                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+                    recipient_list=[user.email],
+                    fail_silently=True,
+                )
+            except Exception:
+                # Don't fail the endpoint due to email provider issues; keep response generic.
+                logger.exception("Password reset email send failed")
+
+        return Response(
+            {
+                "ok": True,
+                "message": "If that email exists, a reset link has been sent.",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class PasswordResetConfirmAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        token = serializer.validated_data["token"].strip()
+        new_password = serializer.validated_data["new_password"]
+
+        user = (
+            User.objects.filter(password_reset_token=token, is_active=True)
+            .select_related("church")
+            .first()
+        )
+        if not user:
+            return Response(
+                {"ok": False, "message": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if (
+            not user.password_reset_expires
+            or user.password_reset_expires < timezone.now()
+        ):
+            return Response(
+                {"ok": False, "message": "Invalid or expired reset token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user.set_password(new_password)
+        user.password_reset_token = None
+        user.password_reset_expires = None
+        user.save(
+            update_fields=["password", "password_reset_token", "password_reset_expires"]
+        )
+
+        return Response(
+            {"ok": True, "message": "Password reset successful."},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ==========================================

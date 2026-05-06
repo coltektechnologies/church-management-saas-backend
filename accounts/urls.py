@@ -13,6 +13,8 @@ from .views import (
     ChurchView,
     LoginAPIView,
     LogoutAPIView,
+    PasswordResetConfirmAPIView,
+    PasswordResetRequestAPIView,
     PermissionDetailAPIView,
     PermissionView,
     RegisterAPIView,
@@ -44,6 +46,16 @@ urlpatterns = [
     path("login/", LoginAPIView.as_view(), name="login"),
     path("logout/", LogoutAPIView.as_view(), name="logout"),
     path("change-password/", ChangePasswordAPIView.as_view(), name="change-password"),
+    path(
+        "password-reset/request/",
+        PasswordResetRequestAPIView.as_view(),
+        name="password-reset-request",
+    ),
+    path(
+        "password-reset/confirm/",
+        PasswordResetConfirmAPIView.as_view(),
+        name="password-reset-confirm",
+    ),
     path("register/", RegisterAPIView.as_view(), name="register"),
     # ==========================================
     # PAYMENT-FIRST REGISTRATION FLOW
