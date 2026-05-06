@@ -613,6 +613,14 @@ class ExpenseTransactionDetailSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         """Validate payment method specific fields"""
         payment_method = attrs.get("payment_method")
+        tx_date = attrs.get("transaction_date")
+
+        if tx_date and tx_date > timezone.localdate():
+            raise serializers.ValidationError(
+                {
+                    "transaction_date": "Transaction date cannot be in the future. Use today or an earlier date."
+                }
+            )
 
         if payment_method == "CHEQUE" and not attrs.get("cheque_number"):
             raise serializers.ValidationError(
