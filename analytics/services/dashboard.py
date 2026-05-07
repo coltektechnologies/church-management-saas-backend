@@ -579,16 +579,19 @@ class DashboardService:
         def _build():
             qs = Announcement.objects.filter(church=self.church)
             total = qs.count()
+            published = qs.filter(status=Announcement.Status.PUBLISHED).count()
             by_status = list(qs.values("status").annotate(count=Count("id")))
             by_priority = list(qs.values("priority").annotate(count=Count("id")))
             return {
                 "total": total,
+                "published": published,
                 "by_status": by_status,
                 "by_priority": by_priority,
                 "generated_at": timezone.now().isoformat(),
             }
 
-        return self._get_cached("announcements_stats", _build)
+        # Cache key bumped when payload shape changes (e.g. added `published`).
+        return self._get_cached("announcements_stats_v2", _build)
 
     # ---------- Analytics: Member contributions (for treasury dashboard) ----------
     def member_contributions(

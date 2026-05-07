@@ -1487,7 +1487,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
                     except ChurchGroup.DoesNotExist:
                         pass  # Skip invalid or wrong-church groups
 
-            # Send credentials if requested (email and/or SMS per notification_preference)
+            # Send credentials after DB commit so the API returns quickly (avoids client
+            # timeouts while SMTP/SMS runs) and credentials still send in a background thread.
             can_email = notification_preference in ("email", "both") and bool(
                 user.email
             )
@@ -1509,63 +1510,88 @@ class UserCreateSerializer(serializers.ModelSerializer):
                     ):
                         allow_staff_invite = True
 
-                try:
-                    outcome = deliver_credentials(
-                        user=user,
-                        password=password,
-                        notification_preference=notification_preference,
-                        request=request,
-                        allow_staff_invite=allow_staff_invite,
-                    )
-                    if outcome.get("success"):
-                        AuditLog.objects.create(
-                            user=user,
-                            action="CREDENTIALS_SENT",
-                            description=(
-                                f"Login credentials sent ({notification_preference}) "
-                                f"to {user.email or ''} / {user.phone or ''}".strip(),
-                            ),
-                            church=user.church,
-                            metadata={
-                                "notification_method": notification_preference,
-                                "auto_generated": auto_generated_password,
-                                "email_sent": outcome.get("email_sent"),
-                                "sms_sent": outcome.get("sms_sent"),
-                            },
-                        )
-                    else:
-                        err = outcome.get("error", "Unknown delivery failure")
+                user_id = user.pk
+                pwd_plain = password
+                notif_pref = notification_preference
+                auto_gen = auto_generated_password
+                req = request
+
+                def deliver_after_commit():
+                    try:
+                        u = User.objects.get(pk=user_id)
+                    except User.DoesNotExist:
                         logger.error(
-                            "Credential delivery failed for user %s: %s",
-                            user.email or user.id,
-                            err,
+                            "User %s not found for deferred credential delivery",
+                            user_id,
                         )
-                        AuditLog.objects.create(
-                            user=user,
-                            action="CREDENTIALS_FAILED",
-                            description=f"Failed to send login credentials: {err}",
-                            church=user.church,
-                            metadata={
-                                "error": err,
-                                "notification_method": notification_preference,
-                            },
+                        return
+                    try:
+                        outcome = deliver_credentials(
+                            user=u,
+                            password=pwd_plain,
+                            notification_preference=notif_pref,
+                            request=req,
+                            allow_staff_invite=allow_staff_invite,
                         )
-                except Exception as e:
-                    logger.error(
-                        "Failed to send credentials to %s: %s",
-                        user.email or user.id,
-                        str(e),
-                    )
-                    AuditLog.objects.create(
-                        user=user,
-                        action="CREDENTIALS_FAILED",
-                        description=f"Failed to send login credentials: {str(e)}",
-                        church=user.church,
-                        metadata={
-                            "error": str(e),
-                            "notification_method": notification_preference,
-                        },
-                    )
+                        if outcome.get("success"):
+                            AuditLog.objects.create(
+                                user=u,
+                                action="CREDENTIALS_SENT",
+                                description=(
+                                    f"Login credentials sent ({notif_pref}) "
+                                    f"to {u.email or ''} / {u.phone or ''}".strip(),
+                                ),
+                                church=u.church,
+                                metadata={
+                                    "notification_method": notif_pref,
+                                    "auto_generated": auto_gen,
+                                    "email_sent": outcome.get("email_sent"),
+                                    "sms_sent": outcome.get("sms_sent"),
+                                },
+                            )
+                        else:
+                            err = outcome.get("error", "Unknown delivery failure")
+                            logger.error(
+                                "Credential delivery failed for user %s: %s",
+                                u.email or u.id,
+                                err,
+                            )
+                            AuditLog.objects.create(
+                                user=u,
+                                action="CREDENTIALS_FAILED",
+                                description=f"Failed to send login credentials: {err}",
+                                church=u.church,
+                                metadata={
+                                    "error": err,
+                                    "notification_method": notif_pref,
+                                },
+                            )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to send credentials to user_id=%s: %s",
+                            user_id,
+                            str(e),
+                        )
+                        try:
+                            u2 = User.objects.get(pk=user_id)
+                            AuditLog.objects.create(
+                                user=u2,
+                                action="CREDENTIALS_FAILED",
+                                description=f"Failed to send login credentials: {str(e)}",
+                                church=u2.church,
+                                metadata={
+                                    "error": str(e),
+                                    "notification_method": notif_pref,
+                                },
+                            )
+                        except User.DoesNotExist:
+                            pass
+
+                transaction.on_commit(
+                    lambda: threading.Thread(
+                        target=deliver_after_commit, daemon=True
+                    ).start()
+                )
 
             return user
 
