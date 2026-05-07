@@ -552,7 +552,12 @@ class ChurchRegistrationCompleteSerializer(serializers.Serializer):
         def _deliver():
             run_registration_credentials_delivery(uid, password, preference)
 
-        threading.Thread(target=_deliver, daemon=True).start()
+        # Must run after this atomic block commits: a new DB connection in the thread
+        # cannot see the User/Church rows until commit — otherwise delivery often fails
+        # with User.DoesNotExist (looks like "SMS/email only worked the first time").
+        transaction.on_commit(
+            lambda: threading.Thread(target=_deliver, daemon=True).start()
+        )
 
         # Create audit log
         AuditLog.objects.create(
