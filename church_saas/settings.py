@@ -283,9 +283,9 @@ CACHES = {
     }
 }
 
-# Session cache
-SESSION_ENGINE = "django.contrib.sessions.backends.cache"
-SESSION_CACHE_ALIAS = "default"
+# Session cache (use database backend for Render compatibility; no Redis needed)
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+# SESSION_CACHE_ALIAS = "default"  # Commented out since we're not using cache backend
 
 # RQ (Redis Queue) Configuration
 RQ_QUEUES = {
