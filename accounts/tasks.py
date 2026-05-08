@@ -74,3 +74,45 @@ def deliver_registration_credentials_task(
 ):
     """Optional Celery entrypoint (e.g. if you enqueue from elsewhere)."""
     run_registration_credentials_delivery(user_id, password, notification_preference)
+
+
+@shared_task
+def send_password_reset_email_task(user_id: str, token: str):
+    """Send password reset email asynchronously via Celery to avoid blocking requests."""
+    from django.conf import settings
+    from django.core.mail import send_mail
+    from django.utils import timezone
+
+    from .models import User
+
+    try:
+        user = User.objects.select_related("church").get(pk=user_id)
+        church = user.church or None
+
+        # Reconstruct the password reset link
+        base = getattr(settings, "FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
+            "/"
+        )
+        link = f"{base}/login/resetpassword?token={token}"
+
+        church_name = getattr(church, "name", None) or "The Open Door"
+        subject = f"Reset your {church_name} password"
+        message = (
+            f"Hello,\n\n"
+            f"We received a request to reset your password. Use the link below to set a new password:\n\n"
+            f"{link}\n\n"
+            f"If you didn't request this, you can ignore this email.\n"
+        )
+
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        logger.info(f"Password reset email sent to {user.email}")
+    except User.DoesNotExist:
+        logger.error(f"User {user_id} not found for password reset email")
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {str(e)}", exc_info=True)

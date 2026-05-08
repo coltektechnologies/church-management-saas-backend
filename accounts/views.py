@@ -106,16 +106,13 @@ class PasswordResetRequestAPIView(APIView):
             )
 
             try:
-                send_mail(
-                    subject=subject,
-                    message=message,
-                    from_email=getattr(settings, "DEFAULT_FROM_EMAIL", None),
-                    recipient_list=[user.email],
-                    fail_silently=True,
-                )
+                # Send password reset email asynchronously via Celery to avoid blocking
+                from accounts.tasks import send_password_reset_email_task
+
+                send_password_reset_email_task.delay(str(user.id), token)
             except Exception:
                 # Don't fail the endpoint due to email provider issues; keep response generic.
-                logger.exception("Password reset email send failed")
+                logger.exception("Password reset email task queuing failed")
 
         return Response(
             {
