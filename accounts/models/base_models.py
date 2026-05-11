@@ -8,6 +8,24 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 
+def church_logo_upload_path(instance, filename):
+    """Upload path for church logos: {church_name}/logos/{filename}"""
+    if instance.name:
+        church_name = instance.name.lower().replace(" ", "_").replace("/", "_")
+    else:
+        church_name = str(instance.id)
+    return f"{church_name}/logos/{filename}"
+
+
+def user_profile_upload_path(instance, filename):
+    """Upload path for user profile images: {church_name}/profiles/{filename}"""
+    if instance.church and instance.church.name:
+        church_name = instance.church.name.lower().replace(" ", "_").replace("/", "_")
+    else:
+        church_name = str(instance.church_id) if instance.church_id else "unknown"
+    return f"{church_name}/profiles/{filename}"
+
+
 class Church(models.Model):
     """Church/Tenant model with subscription support"""
 
@@ -77,7 +95,7 @@ class Church(models.Model):
     church_size = models.CharField(
         max_length=10, choices=CHURCH_SIZE_CHOICES, default="MEDIUM"
     )
-    logo = models.ImageField(upload_to="church_logos/", blank=True, null=True)
+    logo = models.ImageField(upload_to=church_logo_upload_path, blank=True, null=True)
     timezone = models.CharField(max_length=50, default="UTC")
     currency = models.CharField(max_length=3, default="GHS")
     max_users = models.PositiveIntegerField(default=50)
@@ -253,7 +271,9 @@ class User(AbstractUser):
 
     # Extended user fields
     phone = models.CharField(max_length=50, blank=True, null=True)
-    profile_image = models.ImageField(upload_to="users/profiles", blank=True, null=True)
+    profile_image = models.ImageField(
+        upload_to=user_profile_upload_path, blank=True, null=True
+    )
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(
         max_length=10,
